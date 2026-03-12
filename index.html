@@ -24,7 +24,9 @@
     --accent-yellow: #ffd23f;
     --accent-cyan: #3bfff0;
     --accent-blue: #3b8fff;
+    --accent-green: #3bff8c;
     --glow-cyan: rgba(59, 255, 240, 0.08);
+    --glow-red: rgba(255, 59, 79, 0.12);
     --font-display: 'Inter Tight', sans-serif;
     --font-mono: 'JetBrains Mono', monospace;
   }
@@ -48,19 +50,34 @@
     z-index: 9999;
   }
 
+  /* ── TOP ACCENT BAR ── */
+  .top-bar {
+    height: 3px;
+    background: linear-gradient(90deg, var(--accent-red) 0%, var(--accent-orange) 30%, var(--accent-yellow) 60%, var(--accent-cyan) 100%);
+  }
+
   /* ── HEADER ── */
   .header {
-    padding: 20px 28px 16px;
+    padding: 16px 24px 14px;
     border-bottom: 1px solid var(--border);
     display: flex;
     justify-content: space-between;
-    align-items: flex-start;
-    gap: 16px;
+    align-items: center;
+    gap: 12px;
     flex-wrap: wrap;
-    background: linear-gradient(180deg, rgba(255,59,79,0.03) 0%, transparent 100%);
+    background: linear-gradient(135deg, rgba(255,59,79,0.07) 0%, rgba(59,143,255,0.04) 50%, rgba(59,255,240,0.03) 100%);
+    position: relative;
   }
 
-  .header-left { display: flex; flex-direction: column; gap: 5px; }
+  .header::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, rgba(255,59,79,0.4) 0%, transparent 60%);
+  }
+
+  .header-left { display: flex; flex-direction: column; gap: 4px; }
 
   .header-tag {
     font-size: 10px;
@@ -78,6 +95,7 @@
     border-radius: 50%;
     background: var(--accent-red);
     animation: pulse-dot 2s ease-in-out infinite;
+    flex-shrink: 0;
   }
 
   @keyframes pulse-dot {
@@ -87,11 +105,11 @@
 
   .header-title {
     font-family: var(--font-display);
-    font-size: 26px;
+    font-size: 24px;
     font-weight: 900;
-    letter-spacing: -1px;
+    letter-spacing: -0.5px;
     line-height: 1;
-    background: linear-gradient(135deg, var(--text-primary) 0%, var(--text-secondary) 100%);
+    background: linear-gradient(135deg, #ffffff 0%, var(--accent-cyan) 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
   }
@@ -110,8 +128,8 @@
     margin-left: 6px;
   }
 
-  .source-mode.live { background: rgba(59,255,240,0.1); color: var(--accent-cyan); }
-  .source-mode.cached { background: rgba(255,210,63,0.1); color: var(--accent-yellow); }
+  .source-mode.live { background: rgba(59,255,240,0.15); color: var(--accent-cyan); border: 1px solid rgba(59,255,240,0.3); }
+  .source-mode.cached { background: rgba(255,210,63,0.12); color: var(--accent-yellow); border: 1px solid rgba(255,210,63,0.25); }
 
   .header-right {
     display: flex;
@@ -120,41 +138,81 @@
     gap: 8px;
   }
 
-  .status-bar { display: flex; gap: 12px; align-items: center; }
+  .status-bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
 
   .stat-pill {
     display: flex;
     align-items: center;
     gap: 6px;
-    padding: 5px 12px;
+    padding: 5px 11px;
     border-radius: 20px;
-    background: var(--bg-card);
-    border: 1px solid var(--border);
     font-size: 11px;
     font-weight: 500;
   }
 
-  .stat-pill .val { color: var(--accent-cyan); font-weight: 700; font-size: 13px; }
-  .stat-pill .label { color: var(--text-muted); }
+  .stat-pill.pill-active {
+    background: rgba(59,255,240,0.08);
+    border: 1px solid rgba(59,255,240,0.25);
+  }
+  .stat-pill.pill-active .val { color: var(--accent-cyan); font-weight: 700; font-size: 13px; }
+  .stat-pill.pill-active .label { color: rgba(59,255,240,0.6); }
+
+  .stat-pill.pill-inj {
+    background: rgba(255,140,56,0.08);
+    border: 1px solid rgba(255,140,56,0.25);
+  }
+  .stat-pill.pill-inj .val { color: var(--accent-orange); font-weight: 700; font-size: 13px; }
+  .stat-pill.pill-inj .label { color: rgba(255,140,56,0.6); }
+
+  .stat-pill.pill-hr {
+    background: rgba(255,210,63,0.08);
+    border: 1px solid rgba(255,210,63,0.2);
+  }
+  .stat-pill.pill-hr .val { color: var(--accent-yellow); font-weight: 700; font-size: 13px; }
+  .stat-pill.pill-hr .label { color: rgba(255,210,63,0.6); }
 
   .clock {
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 600;
-    color: var(--text-secondary);
+    color: var(--accent-cyan);
     font-variant-numeric: tabular-nums;
+    opacity: 0.7;
+  }
+
+  /* ── MOBILE TABS ── */
+  .mobile-tabs {
+    display: none;
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .tab-btn {
+    flex: 1;
+    padding: 11px;
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.2s;
+    border-bottom: 2px solid transparent;
+  }
+
+  .tab-btn.active {
+    color: var(--accent-cyan);
+    border-bottom-color: var(--accent-cyan);
+    background: rgba(59,255,240,0.04);
   }
 
   /* ── LAYOUT ── */
   .main-grid {
     display: grid;
     grid-template-columns: 1fr 420px;
-    height: calc(100vh - 85px);
-  }
-
-  @media (max-width: 900px) {
-    .main-grid { grid-template-columns: 1fr; height: auto; }
-    .map-panel { height: 50vh; }
-    .feed-panel { height: 50vh; }
+    height: calc(100vh - 88px);
   }
 
   /* ── MAP ── */
@@ -207,7 +265,7 @@
     backdrop-filter: blur(12px);
     border: 1px solid var(--border);
     border-radius: 8px;
-    padding: 12px 16px;
+    padding: 10px 14px;
     display: flex;
     flex-direction: column;
     gap: 6px;
@@ -230,30 +288,31 @@
   }
 
   .feed-top {
-    padding: 14px 20px;
+    padding: 12px 20px;
     border-bottom: 1px solid var(--border);
     display: flex;
     justify-content: space-between;
     align-items: center;
     flex-shrink: 0;
-    background: var(--bg-card);
+    background: linear-gradient(135deg, rgba(59,143,255,0.06) 0%, rgba(59,255,240,0.04) 100%);
   }
 
   .feed-label {
     font-size: 11px;
     letter-spacing: 2px;
     text-transform: uppercase;
-    color: var(--text-secondary);
+    color: var(--accent-cyan);
     font-weight: 600;
+    opacity: 0.8;
   }
 
   .btn-refresh {
-    background: none;
-    border: 1px solid var(--border);
-    color: var(--text-secondary);
+    background: rgba(59,255,240,0.06);
+    border: 1px solid rgba(59,255,240,0.2);
+    color: var(--accent-cyan);
     font-family: var(--font-mono);
     font-size: 10px;
-    padding: 4px 10px;
+    padding: 5px 12px;
     border-radius: 4px;
     cursor: pointer;
     transition: all 0.2s;
@@ -262,10 +321,12 @@
   }
 
   .btn-refresh:hover {
+    background: rgba(59,255,240,0.12);
     border-color: var(--accent-cyan);
-    color: var(--accent-cyan);
     box-shadow: 0 0 12px var(--glow-cyan);
   }
+
+  .btn-refresh:active { transform: scale(0.97); }
 
   .btn-refresh.busy { opacity: 0.4; pointer-events: none; }
 
@@ -274,6 +335,7 @@
     overflow-y: auto;
     scrollbar-width: thin;
     scrollbar-color: var(--border-accent) transparent;
+    -webkit-overflow-scrolling: touch;
   }
 
   .feed-list::-webkit-scrollbar { width: 4px; }
@@ -303,13 +365,17 @@
     border-radius: 0 2px 2px 0;
   }
 
+  .card.t-accident { background: rgba(255,59,79,0.03); }
   .card.t-accident::before  { background: var(--accent-red);    }
+  .card.t-injury { background: rgba(255,140,56,0.03); }
   .card.t-injury::before   { background: var(--accent-orange);  }
+  .card.t-hitrun { background: rgba(255,210,63,0.03); }
   .card.t-hitrun::before   { background: var(--accent-yellow);  }
+  .card.t-other { background: rgba(59,143,255,0.02); }
   .card.t-other::before    { background: var(--accent-blue);    }
 
-  .card:hover    { background: var(--bg-card-hover); }
-  .card.selected { background: var(--bg-elevated); }
+  .card:hover { filter: brightness(1.3); }
+  .card.selected { filter: brightness(1.5); }
 
   .card-row {
     display: flex;
@@ -329,10 +395,10 @@
     white-space: nowrap;
   }
 
-  .badge.t-accident  { background: rgba(255,59,79,0.12);  color: var(--accent-red);    }
-  .badge.t-injury   { background: rgba(255,140,56,0.12); color: var(--accent-orange);  }
-  .badge.t-hitrun   { background: rgba(255,210,63,0.12); color: var(--accent-yellow);  }
-  .badge.t-other    { background: rgba(59,143,255,0.12); color: var(--accent-blue);    }
+  .badge.t-accident  { background: rgba(255,59,79,0.15);  color: var(--accent-red);   border: 1px solid rgba(255,59,79,0.2); }
+  .badge.t-injury   { background: rgba(255,140,56,0.15); color: var(--accent-orange); border: 1px solid rgba(255,140,56,0.2); }
+  .badge.t-hitrun   { background: rgba(255,210,63,0.15); color: var(--accent-yellow); border: 1px solid rgba(255,210,63,0.2); }
+  .badge.t-other    { background: rgba(59,143,255,0.15); color: var(--accent-blue);   border: 1px solid rgba(59,143,255,0.2); }
 
   .card-time {
     font-size: 11px;
@@ -361,14 +427,14 @@
 
   /* ── POPUP ── */
   .leaflet-popup-content-wrapper {
-    background: rgba(17,17,20,0.95) !important;
+    background: rgba(17,17,20,0.97) !important;
     border: 1px solid var(--border) !important;
     border-radius: 8px !important;
     box-shadow: 0 8px 32px rgba(0,0,0,0.6) !important;
     color: var(--text-primary) !important;
   }
 
-  .leaflet-popup-tip { background: rgba(17,17,20,0.95) !important; }
+  .leaflet-popup-tip { background: rgba(17,17,20,0.97) !important; }
 
   .leaflet-popup-content {
     font-family: var(--font-mono) !important;
@@ -443,9 +509,93 @@
     text-transform: uppercase;
     color: var(--text-muted);
   }
+
+  /* ══════════════════════════════════════
+     RESPONSIVE — TABLET (≤ 900px)
+  ══════════════════════════════════════ */
+  @media (max-width: 900px) {
+    .main-grid {
+      grid-template-columns: 1fr;
+      height: calc(100vh - 136px); /* header + tabs */
+    }
+
+    .mobile-tabs {
+      display: flex;
+    }
+
+    .map-panel {
+      height: 100%;
+      display: none;
+    }
+
+    .map-panel.tab-active {
+      display: block;
+    }
+
+    .feed-panel {
+      display: none;
+      height: 100%;
+    }
+
+    .feed-panel.tab-active {
+      display: flex;
+    }
+
+    .map-legend {
+      bottom: 12px;
+      left: 12px;
+      padding: 8px 12px;
+    }
+  }
+
+  /* ══════════════════════════════════════
+     RESPONSIVE — PHONE (≤ 480px)
+  ══════════════════════════════════════ */
+  @media (max-width: 480px) {
+    .header {
+      padding: 12px 16px 10px;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 10px;
+    }
+
+    .header-title { font-size: 20px; }
+
+    .header-right {
+      width: 100%;
+      flex-direction: row;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .status-bar { gap: 6px; }
+
+    .stat-pill {
+      padding: 4px 9px;
+      font-size: 10px;
+    }
+
+    .stat-pill .val { font-size: 12px; }
+
+    .clock { font-size: 11px; }
+
+    .card { padding: 12px 16px; }
+
+    .card-addr { font-size: 13px; }
+
+    .feed-top { padding: 10px 16px; }
+
+    .main-grid {
+      height: calc(100vh - 158px); /* taller header on phone */
+    }
+
+    .legend-row { font-size: 9px; }
+  }
 </style>
 </head>
 <body>
+
+<div class="top-bar"></div>
 
 <div class="header">
   <div class="header-left">
@@ -459,15 +609,20 @@
   <div class="header-right">
     <div class="clock" id="clock">--:--:--</div>
     <div class="status-bar">
-      <div class="stat-pill"><span class="label">ACTIVE</span><span class="val" id="sCount">—</span></div>
-      <div class="stat-pill"><span class="label">INJURIES</span><span class="val" id="sInj">—</span></div>
-      <div class="stat-pill"><span class="label">HIT&amp;RUN</span><span class="val" id="sHR">—</span></div>
+      <div class="stat-pill pill-active"><span class="label">ACTIVE</span><span class="val" id="sCount">—</span></div>
+      <div class="stat-pill pill-inj"><span class="label">INJURIES</span><span class="val" id="sInj">—</span></div>
+      <div class="stat-pill pill-hr"><span class="label">HIT&amp;RUN</span><span class="val" id="sHR">—</span></div>
     </div>
   </div>
 </div>
 
+<div class="mobile-tabs">
+  <button class="tab-btn" id="tabMap" onclick="switchTab('map')">Map</button>
+  <button class="tab-btn active" id="tabFeed" onclick="switchTab('feed')">Incident Feed</button>
+</div>
+
 <div class="main-grid">
-  <div class="map-panel">
+  <div class="map-panel" id="mapPanel">
     <div id="map"></div>
     <div class="map-legend">
       <div class="legend-row"><div class="legend-dot" style="background:var(--accent-red)"></div>Traffic Accident</div>
@@ -477,7 +632,7 @@
     </div>
   </div>
 
-  <div class="feed-panel">
+  <div class="feed-panel tab-active" id="feedPanel">
     <div class="feed-top">
       <span class="feed-label">Incident Feed</span>
       <button class="btn-refresh" id="btnRefresh" onclick="loadData()">Refresh</button>
@@ -500,6 +655,30 @@ const FALLBACK_DATA = [
   {"CreateTime":"2026-03-11T21:04:05","Signal":"TRAFFIC ACCIDENT","Address":"SW 88TH ST / SW 132ND AVE","Location":"IFO TMOBILE P/LOT","Grid":"4823","Longitude":-80.40371758,"Latitude":25.68567778},
   {"CreateTime":"2026-03-11T19:57:47","Signal":"TRAFFIC ACCIDENT WITH INJURIES","Address":"CRANDON BLVD / OCEAN LANE DR","Location":"SHELL","Grid":"1560","Longitude":-80.16216719,"Latitude":25.69933104}
 ];
+
+// ══════════════════════════════════════
+// MOBILE TAB SWITCHER
+// ══════════════════════════════════════
+function switchTab(tab) {
+  const mapPanel  = document.getElementById('mapPanel');
+  const feedPanel = document.getElementById('feedPanel');
+  const tabMap    = document.getElementById('tabMap');
+  const tabFeed   = document.getElementById('tabFeed');
+
+  if (tab === 'map') {
+    mapPanel.classList.add('tab-active');
+    feedPanel.classList.remove('tab-active');
+    tabMap.classList.add('active');
+    tabFeed.classList.remove('active');
+    // Invalidate map size after it becomes visible
+    setTimeout(() => map.invalidateSize(), 50);
+  } else {
+    feedPanel.classList.add('tab-active');
+    mapPanel.classList.remove('tab-active');
+    tabFeed.classList.add('active');
+    tabMap.classList.remove('active');
+  }
+}
 
 // ══════════════════════════════════════
 // MAP
@@ -611,8 +790,17 @@ function render(data) {
       list.querySelectorAll('.card').forEach(c => c.classList.remove('selected'));
       card.classList.add('selected');
       if (item.Latitude && item.Longitude) {
-        map.flyTo([item.Latitude, item.Longitude], 15, { duration: 0.7 });
-        if (markerRefs[i]) markerRefs[i].openPopup();
+        // On mobile, switch to map tab first, then fly
+        if (window.innerWidth <= 900) {
+          switchTab('map');
+          setTimeout(() => {
+            map.flyTo([item.Latitude, item.Longitude], 15, { duration: 0.7 });
+            if (markerRefs[i]) markerRefs[i].openPopup();
+          }, 100);
+        } else {
+          map.flyTo([item.Latitude, item.Longitude], 15, { duration: 0.7 });
+          if (markerRefs[i]) markerRefs[i].openPopup();
+        }
       }
     };
     list.appendChild(card);
