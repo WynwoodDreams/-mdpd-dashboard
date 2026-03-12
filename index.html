@@ -131,7 +131,7 @@
     margin-left: 6px;
   }
 
-  .source-mode.live { background: rgba(59,255,240,0.15); color: var(--accent-cyan); border: 1px solid rgba(59,255,240,0.3); }
+  .source-mode.live   { background: rgba(59,255,240,0.15); color: var(--accent-cyan);   border: 1px solid rgba(59,255,240,0.3);  }
   .source-mode.cached { background: rgba(255,210,63,0.12); color: var(--accent-yellow); border: 1px solid rgba(255,210,63,0.25); }
 
   .header-right {
@@ -153,26 +153,17 @@
     font-weight: 500;
   }
 
-  .stat-pill.pill-active {
-    background: rgba(59,255,240,0.08);
-    border: 1px solid rgba(59,255,240,0.25);
-  }
-  .stat-pill.pill-active .val { color: var(--accent-cyan); font-weight: 700; font-size: 13px; }
+  .stat-pill.pill-active { background: rgba(59,255,240,0.08);  border: 1px solid rgba(59,255,240,0.25); }
+  .stat-pill.pill-active .val   { color: var(--accent-cyan);   font-weight: 700; font-size: 13px; }
   .stat-pill.pill-active .label { color: rgba(59,255,240,0.6); }
 
-  .stat-pill.pill-inj {
-    background: rgba(255,140,56,0.08);
-    border: 1px solid rgba(255,140,56,0.25);
-  }
-  .stat-pill.pill-inj .val { color: var(--accent-orange); font-weight: 700; font-size: 13px; }
-  .stat-pill.pill-inj .label { color: rgba(255,140,56,0.6); }
+  .stat-pill.pill-inj { background: rgba(255,140,56,0.08); border: 1px solid rgba(255,140,56,0.25); }
+  .stat-pill.pill-inj .val   { color: var(--accent-orange);  font-weight: 700; font-size: 13px; }
+  .stat-pill.pill-inj .label { color: rgba(255,140,56,0.6);  }
 
-  .stat-pill.pill-hr {
-    background: rgba(255,210,63,0.08);
-    border: 1px solid rgba(255,210,63,0.2);
-  }
-  .stat-pill.pill-hr .val { color: var(--accent-yellow); font-weight: 700; font-size: 13px; }
-  .stat-pill.pill-hr .label { color: rgba(255,210,63,0.6); }
+  .stat-pill.pill-hr { background: rgba(255,210,63,0.08); border: 1px solid rgba(255,210,63,0.2); }
+  .stat-pill.pill-hr .val   { color: var(--accent-yellow);  font-weight: 700; font-size: 13px; }
+  .stat-pill.pill-hr .label { color: rgba(255,210,63,0.6);  }
 
   .clock {
     font-size: 12px;
@@ -246,23 +237,23 @@
   }
 
   @keyframes ring-out {
-    0% { transform: scale(0.8); opacity: 0.6; }
+    0%   { transform: scale(0.8); opacity: 0.6; }
     100% { transform: scale(2.6); opacity: 0; }
   }
 
-  .m-accident  { background: rgba(255,59,79,0.5);  border-color: var(--accent-red);    }
-  .m-accident::before  { border-color: var(--accent-red);    }
-  .m-injury   { background: rgba(255,140,56,0.5); border-color: var(--accent-orange);  }
+  .m-accident::before { border-color: var(--accent-red);    }
   .m-injury::before   { border-color: var(--accent-orange);  }
-  .m-hitrun   { background: rgba(255,210,63,0.5); border-color: var(--accent-yellow);  }
   .m-hitrun::before   { border-color: var(--accent-yellow);  }
-  .m-other    { background: rgba(59,143,255,0.5); border-color: var(--accent-blue);    }
   .m-other::before    { border-color: var(--accent-blue);    }
+
+  .m-accident { background: rgba(255,59,79,0.5);  border-color: var(--accent-red);    }
+  .m-injury   { background: rgba(255,140,56,0.5); border-color: var(--accent-orange);  }
+  .m-hitrun   { background: rgba(255,210,63,0.5); border-color: var(--accent-yellow);  }
+  .m-other    { background: rgba(59,143,255,0.5); border-color: var(--accent-blue);    }
 
   .map-legend {
     position: absolute;
-    bottom: 16px;
-    left: 16px;
+    bottom: 16px; left: 16px;
     z-index: 1000;
     background: rgba(10,10,12,0.92);
     backdrop-filter: blur(12px);
@@ -323,16 +314,65 @@
     text-transform: uppercase;
   }
 
-  .btn-refresh:hover {
-    background: rgba(59,255,240,0.12);
-    border-color: var(--accent-cyan);
-    box-shadow: 0 0 12px var(--glow-cyan);
+  .btn-refresh:hover  { background: rgba(59,255,240,0.12); border-color: var(--accent-cyan); box-shadow: 0 0 12px var(--glow-cyan); }
+  .btn-refresh:active { transform: scale(0.97); }
+  .btn-refresh.busy   { opacity: 0.4; pointer-events: none; }
+
+  /* ── HISTORY CHART ── */
+  .history-bar {
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    background: rgba(8,8,10,0.7);
+    overflow: hidden;
   }
 
-  .btn-refresh:active { transform: scale(0.97); }
+  .history-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 20px;
+    cursor: pointer;
+    user-select: none;
+    gap: 8px;
+  }
 
-  .btn-refresh.busy { opacity: 0.4; pointer-events: none; }
+  .history-header:hover { background: rgba(255,255,255,0.02); }
 
+  .history-title {
+    font-size: 9px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    font-weight: 600;
+  }
+
+  .history-peak {
+    font-size: 9px;
+    color: var(--text-muted);
+    opacity: 0.6;
+    margin-left: auto;
+    margin-right: 10px;
+  }
+
+  .history-toggle {
+    font-size: 9px;
+    color: var(--text-muted);
+    transition: transform 0.2s;
+    line-height: 1;
+  }
+
+  .history-bar.open .history-toggle { transform: rotate(180deg); }
+
+  .history-body {
+    display: none;
+    padding: 2px 16px 10px;
+  }
+
+  .history-bar.open .history-body { display: block; }
+
+  #historyCanvas { width: 100%; height: 60px; display: block; }
+
+  /* ── FEED LIST ── */
   .feed-list {
     flex: 1;
     overflow-y: auto;
@@ -350,7 +390,7 @@
     padding: 14px 20px;
     border-bottom: 1px solid var(--border);
     cursor: pointer;
-    transition: background 0.2s;
+    transition: opacity 0.2s, filter 0.2s;
     position: relative;
     animation: slideIn 0.35s ease-out both;
   }
@@ -368,17 +408,30 @@
     border-radius: 0 2px 2px 0;
   }
 
-  .card.t-accident { background: rgba(255,59,79,0.03); }
-  .card.t-accident::before  { background: var(--accent-red);    }
-  .card.t-injury { background: rgba(255,140,56,0.03); }
+  .card.t-accident { background: rgba(255,59,79,0.03);  }
+  .card.t-injury   { background: rgba(255,140,56,0.03); }
+  .card.t-hitrun   { background: rgba(255,210,63,0.03); }
+  .card.t-other    { background: rgba(59,143,255,0.02); }
+
+  .card.t-accident::before { background: var(--accent-red);    }
   .card.t-injury::before   { background: var(--accent-orange);  }
-  .card.t-hitrun { background: rgba(255,210,63,0.03); }
   .card.t-hitrun::before   { background: var(--accent-yellow);  }
-  .card.t-other { background: rgba(59,143,255,0.02); }
   .card.t-other::before    { background: var(--accent-blue);    }
 
-  .card:hover { filter: brightness(1.3); }
+  .card:hover    { filter: brightness(1.3); }
   .card.selected { filter: brightness(1.5); }
+
+  /* Stale incidents (> 3h old) */
+  .card.stale             { opacity: 0.35; filter: saturate(0.2); }
+  .card.stale:hover       { opacity: 0.55; filter: saturate(0.4); }
+  .card.stale.selected    { opacity: 0.75; filter: saturate(0.6); }
+
+  .stale-label {
+    font-size: 9px;
+    color: var(--text-muted);
+    margin-left: 5px;
+    opacity: 0.65;
+  }
 
   .card-row {
     display: flex;
@@ -396,9 +449,10 @@
     padding: 3px 8px;
     border-radius: 3px;
     white-space: nowrap;
+    flex-shrink: 0;
   }
 
-  .badge.t-accident  { background: rgba(255,59,79,0.15);  color: var(--accent-red);   border: 1px solid rgba(255,59,79,0.2); }
+  .badge.t-accident { background: rgba(255,59,79,0.15);  color: var(--accent-red);    border: 1px solid rgba(255,59,79,0.2);  }
   .badge.t-injury   { background: rgba(255,140,56,0.15); color: var(--accent-orange); border: 1px solid rgba(255,140,56,0.2); }
   .badge.t-hitrun   { background: rgba(255,210,63,0.15); color: var(--accent-yellow); border: 1px solid rgba(255,210,63,0.2); }
   .badge.t-other    { background: rgba(59,143,255,0.15); color: var(--accent-blue);   border: 1px solid rgba(59,143,255,0.2); }
@@ -408,6 +462,7 @@
     color: var(--text-muted);
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
+    flex-shrink: 0;
   }
 
   .card-addr {
@@ -415,8 +470,19 @@
     font-size: 14px;
     font-weight: 600;
     color: var(--text-primary);
-    margin-bottom: 4px;
+    margin-bottom: 3px;
     line-height: 1.3;
+  }
+
+  /* Landmark row shown when Location field is present */
+  .card-landmark {
+    font-size: 10px;
+    color: var(--accent-yellow);
+    opacity: 0.8;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
   }
 
   .card-meta {
@@ -426,67 +492,7 @@
     color: var(--text-muted);
     letter-spacing: 0.3px;
     flex-wrap: wrap;
-  }
-
-  /* ── POPUP ── */
-  .leaflet-popup-content-wrapper {
-    background: rgba(17,17,20,0.97) !important;
-    border: 1px solid var(--border) !important;
-    border-radius: 8px !important;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.6) !important;
-    color: var(--text-primary) !important;
-  }
-
-  .leaflet-popup-tip { background: rgba(17,17,20,0.97) !important; }
-
-  .leaflet-popup-content {
-    font-family: var(--font-mono) !important;
-    font-size: 11px !important;
-    line-height: 1.6 !important;
-    margin: 10px 14px !important;
-  }
-
-  .pop-sig {
-    font-size: 10px; font-weight: 700;
-    letter-spacing: 1.5px; text-transform: uppercase;
-    margin-bottom: 3px;
-  }
-
-  .pop-addr {
-    font-family: var(--font-display);
-    font-size: 13px; font-weight: 600;
-    margin-bottom: 3px;
-  }
-
-  .pop-time { color: var(--text-muted); font-size: 10px; }
-
-  /* ── FOOTER ── */
-  .feed-footer {
-    padding: 8px 20px;
-    border-top: 1px solid var(--border);
-    font-size: 9px;
-    color: var(--text-muted);
-    letter-spacing: 1px;
-    text-transform: uppercase;
-    text-align: center;
-    flex-shrink: 0;
-    background: var(--bg-card);
-  }
-
-  .auto-badge {
-    display: inline-flex;
     align-items: center;
-    gap: 4px;
-    margin-left: 8px;
-    color: var(--accent-cyan);
-    opacity: 0.6;
-  }
-
-  .auto-badge::before {
-    content: '';
-    width: 4px; height: 4px;
-    border-radius: 50%;
-    background: var(--accent-cyan);
   }
 
   /* ── NEW BADGE ── */
@@ -550,6 +556,101 @@
     font-size: 11px !important;
   }
 
+  /* ── POPUP ── */
+  .leaflet-popup-content-wrapper {
+    background: rgba(17,17,20,0.97) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 8px !important;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.6) !important;
+    color: var(--text-primary) !important;
+  }
+
+  .leaflet-popup-tip { background: rgba(17,17,20,0.97) !important; }
+
+  .leaflet-popup-content {
+    font-family: var(--font-mono) !important;
+    font-size: 11px !important;
+    line-height: 1.6 !important;
+    margin: 10px 14px !important;
+  }
+
+  .pop-sig {
+    font-size: 10px; font-weight: 700;
+    letter-spacing: 1.5px; text-transform: uppercase;
+    margin-bottom: 3px;
+  }
+
+  .pop-addr {
+    font-family: var(--font-display);
+    font-size: 13px; font-weight: 600;
+    margin-bottom: 3px;
+  }
+
+  .pop-landmark {
+    font-size: 10px;
+    color: var(--accent-yellow);
+    margin-bottom: 4px;
+    opacity: 0.85;
+  }
+
+  .pop-time { color: var(--text-muted); font-size: 10px; }
+
+  /* Street View thumbnail container in popup */
+  .popup-sv {
+    margin: 7px -2px 5px;
+    border-radius: 5px;
+    overflow: hidden;
+    background: var(--bg-elevated);
+    min-height: 70px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .popup-sv img {
+    width: 100%;
+    height: auto;
+    display: none; /* shown by onload */
+    border-radius: 5px;
+  }
+
+  .popup-sv-loading {
+    font-size: 9px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    padding: 18px;
+  }
+
+  /* ── FOOTER ── */
+  .feed-footer {
+    padding: 8px 20px;
+    border-top: 1px solid var(--border);
+    font-size: 9px;
+    color: var(--text-muted);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    text-align: center;
+    flex-shrink: 0;
+    background: var(--bg-card);
+  }
+
+  .auto-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: 8px;
+    color: var(--accent-cyan);
+    opacity: 0.6;
+  }
+
+  .auto-badge::before {
+    content: '';
+    width: 4px; height: 4px;
+    border-radius: 50%;
+    background: var(--accent-cyan);
+  }
+
   /* ── LOADING ── */
   .loader-wrap {
     display: flex; flex-direction: column;
@@ -580,36 +681,18 @@
   @media (max-width: 900px) {
     .main-grid {
       grid-template-columns: 1fr;
-      height: calc(100vh - 136px); /* header + tabs */
+      height: calc(100vh - 136px);
     }
 
-    .mobile-tabs {
-      display: flex;
-    }
+    .mobile-tabs { display: flex; }
 
-    .map-panel {
-      height: 100%;
-      display: none;
-    }
+    .map-panel  { height: 100%; display: none; }
+    .feed-panel { display: none; height: 100%; }
 
-    .map-panel.tab-active {
-      display: block;
-    }
+    .map-panel.tab-active  { display: block; }
+    .feed-panel.tab-active { display: flex; }
 
-    .feed-panel {
-      display: none;
-      height: 100%;
-    }
-
-    .feed-panel.tab-active {
-      display: flex;
-    }
-
-    .map-legend {
-      bottom: 12px;
-      left: 12px;
-      padding: 8px 12px;
-    }
+    .map-legend { bottom: 12px; left: 12px; padding: 8px 12px; }
   }
 
   /* ══════════════════════════════════════
@@ -634,24 +717,16 @@
 
     .status-bar { gap: 6px; }
 
-    .stat-pill {
-      padding: 4px 9px;
-      font-size: 10px;
-    }
-
-    .stat-pill .val { font-size: 12px; }
+    .stat-pill       { padding: 4px 9px; font-size: 10px; }
+    .stat-pill .val  { font-size: 12px; }
 
     .clock { font-size: 11px; }
 
-    .card { padding: 12px 16px; }
-
+    .card      { padding: 12px 16px; }
     .card-addr { font-size: 13px; }
+    .feed-top  { padding: 10px 16px; }
 
-    .feed-top { padding: 10px 16px; }
-
-    .main-grid {
-      height: calc(100vh - 158px); /* taller header on phone */
-    }
+    .main-grid { height: calc(100vh - 158px); }
 
     .legend-row { font-size: 9px; }
   }
@@ -701,6 +776,19 @@
       <span class="feed-label">Incident Feed</span>
       <button class="btn-refresh" id="btnRefresh" onclick="loadData()">Refresh</button>
     </div>
+
+    <!-- 24-hour activity chart (collapsed by default) -->
+    <div class="history-bar" id="historyBar">
+      <div class="history-header" onclick="toggleHistory()">
+        <span class="history-title">24H Activity</span>
+        <span class="history-peak" id="historyPeak"></span>
+        <span class="history-toggle">▼</span>
+      </div>
+      <div class="history-body">
+        <canvas id="historyCanvas"></canvas>
+      </div>
+    </div>
+
     <div class="feed-list" id="feedList">
       <div class="loader-wrap"><div class="spin-ring"></div><div class="loader-text">Connecting…</div></div>
     </div>
@@ -709,6 +797,17 @@
 </div>
 
 <script>
+// ══════════════════════════════════════
+// CONFIG
+// To enable Street View thumbnails in map
+// popups, add your Google Maps API key here.
+// Requires "Street View Static API" enabled
+// at console.cloud.google.com
+// ══════════════════════════════════════
+const GOOGLE_API_KEY = ''; // e.g. 'AIzaSy...'
+
+const STALE_THRESHOLD_MS = 3 * 60 * 60 * 1000; // 3 hours
+
 // ══════════════════════════════════════
 // EMBEDDED FALLBACK — last server fetch
 // ══════════════════════════════════════
@@ -734,7 +833,6 @@ function switchTab(tab) {
     feedPanel.classList.remove('tab-active');
     tabMap.classList.add('active');
     tabFeed.classList.remove('active');
-    // Invalidate map size after it becomes visible
     setTimeout(() => map.invalidateSize(), 50);
   } else {
     feedPanel.classList.add('tab-active');
@@ -754,7 +852,7 @@ const map = L.map('map', {
   attributionControl: false
 });
 L.control.zoom({ position: 'topright' }).addTo(map);
-// Try multiple dark tile providers with fallback
+
 const tileSources = [
   'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
   'https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png',
@@ -763,23 +861,17 @@ const tileSources = [
 
 let tileIdx = 0;
 function loadTiles(idx) {
-  const layer = L.tileLayer(tileSources[idx], {
-    maxZoom: 19,
-    errorTileUrl: ''
-  }).addTo(map);
-
-  // If this source fails, try the next
-  layer.on('tileerror', function() {
+  const layer = L.tileLayer(tileSources[idx], { maxZoom: 19, errorTileUrl: '' }).addTo(map);
+  layer.on('tileerror', () => {
     if (tileIdx < tileSources.length - 1) {
       tileIdx++;
       map.removeLayer(layer);
       loadTiles(tileIdx);
     }
   });
-
-  // Apply a subtle filter only if using the non-dark OSM fallback
   if (idx === tileSources.length - 1) {
-    document.querySelector('.leaflet-tile-pane').style.filter = 'invert(1) hue-rotate(180deg) brightness(0.7) contrast(1.2) saturate(0.3)';
+    document.querySelector('.leaflet-tile-pane').style.filter =
+      'invert(1) hue-rotate(180deg) brightness(0.7) contrast(1.2) saturate(0.3)';
   }
 }
 loadTiles(0);
@@ -799,9 +891,9 @@ let seenKeys = new Set();
 // ══════════════════════════════════════
 function classify(sig) {
   const s = (sig || '').toUpperCase();
-  if (s.includes('INJUR'))               return 'injury';
+  if (s.includes('INJUR'))                     return 'injury';
   if (s.includes('HIT') && s.includes('RUN')) return 'hitrun';
-  if (s.includes('ACCIDENT'))            return 'accident';
+  if (s.includes('ACCIDENT'))                  return 'accident';
   return 'other';
 }
 
@@ -822,6 +914,137 @@ function ago(iso) {
   } catch { return ''; }
 }
 
+function isStale(iso) {
+  try { return (Date.now() - new Date(iso).getTime()) > STALE_THRESHOLD_MS; }
+  catch { return false; }
+}
+
+// Minimal HTML escape to prevent XSS from API data
+function esc(s) {
+  return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// ══════════════════════════════════════
+// HISTORY — localStorage accumulation
+// Stores { "YYYY-MM-DDTHH": maxCount, ... }
+// for the last 24 hours across sessions.
+// ══════════════════════════════════════
+const HISTORY_KEY = 'mdpd_history';
+const HISTORY_HOURS = 12;
+
+function saveHistory(count) {
+  try {
+    const history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '{}');
+    const hourKey = new Date().toISOString().slice(0, 13);
+    // Keep the highest count seen within each hour slot
+    history[hourKey] = Math.max(history[hourKey] || 0, count);
+    // Prune slots older than our display window
+    const cutoff = new Date(Date.now() - HISTORY_HOURS * 3600000).toISOString().slice(0, 13);
+    for (const k of Object.keys(history)) {
+      if (k < cutoff) delete history[k];
+    }
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+  } catch { /* localStorage unavailable */ }
+}
+
+function getHistory() {
+  try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || '{}'); }
+  catch { return {}; }
+}
+
+function toggleHistory() {
+  const bar = document.getElementById('historyBar');
+  bar.classList.toggle('open');
+  if (bar.classList.contains('open')) drawHistoryChart();
+}
+
+function drawHistoryChart() {
+  const canvas = document.getElementById('historyCanvas');
+  if (!canvas || canvas.offsetWidth === 0) return;
+
+  const history = getHistory();
+  const now = new Date();
+
+  // Build hour buckets from oldest → newest
+  const buckets = [];
+  for (let i = HISTORY_HOURS - 1; i >= 0; i--) {
+    const d      = new Date(now.getTime() - i * 3600000);
+    const key    = d.toISOString().slice(0, 13);
+    const label  = d.toLocaleTimeString('en-US', { hour: 'numeric', hour12: true });
+    buckets.push({ key, label, count: history[key] ?? null, isCurrent: i === 0 });
+  }
+
+  const maxCount = Math.max(1, ...buckets.map(b => b.count ?? 0));
+
+  // Update the peak indicator in the collapsed header
+  const peakEl = document.getElementById('historyPeak');
+  if (peakEl) peakEl.textContent = 'peak: ' + maxCount;
+
+  // DPI-aware canvas sizing
+  const dpr = window.devicePixelRatio || 1;
+  const w   = canvas.offsetWidth;
+  const h   = 60;
+  canvas.width  = w * dpr;
+  canvas.height = h * dpr;
+  canvas.style.height = h + 'px';
+
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, w, h);
+
+  const labelH = 14;
+  const chartH = h - labelH;
+  const slotW  = w / buckets.length;
+  const barW   = Math.max(2, slotW - 3);
+
+  buckets.forEach((b, i) => {
+    const x = i * slotW + (slotW - barW) / 2;
+
+    if (b.count !== null && b.count > 0) {
+      const barH = Math.max(3, (b.count / maxCount) * chartH);
+      const y    = chartH - barH;
+
+      // Interpolate colour: cyan (#3bfff0) → orange (#ff8c38) as count rises
+      const ratio = b.count / maxCount;
+      const r  = Math.round(59  + ratio * (255 - 59));
+      const g  = Math.round(255 + ratio * (140 - 255));
+      const bl = Math.round(240 + ratio * (56  - 240));
+      ctx.fillStyle = `rgba(${r},${g},${bl},${b.isCurrent ? 0.9 : 0.6})`;
+
+      if (ctx.roundRect) {
+        ctx.beginPath();
+        ctx.roundRect(x, y, barW, barH, [2, 2, 0, 0]);
+        ctx.fill();
+      } else {
+        ctx.fillRect(x, y, barW, barH);
+      }
+
+      // Count label inside bar if there's room
+      if (barH > 16) {
+        ctx.fillStyle = 'rgba(255,255,255,0.75)';
+        ctx.font = '600 8px JetBrains Mono, monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        ctx.fillText(b.count, x + barW / 2, y + 3);
+      }
+    } else if (b.count === null) {
+      // Gap — no data recorded for this slot
+      ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x + 0.5, 0.5, barW - 1, chartH - 1);
+    }
+
+    // Hour label — every other slot + always current
+    if (i % 2 === 0 || b.isCurrent) {
+      ctx.fillStyle = b.isCurrent ? 'rgba(59,255,240,0.75)' : 'rgba(85,85,106,0.6)';
+      ctx.font = '500 7px JetBrains Mono, monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'alphabetic';
+      ctx.fillText(b.label, x + barW / 2, h - 2);
+    }
+  });
+}
+
 // ══════════════════════════════════════
 // RENDER
 // ══════════════════════════════════════
@@ -829,98 +1052,115 @@ function incidentKey(item) {
   return item.CreateTime + '|' + item.Address;
 }
 
-function render(data, isFirstLoad) {
+function render(data, firstLoad) {
   // Stats
   document.getElementById('sCount').textContent = data.length;
   document.getElementById('sInj').textContent   = data.filter(d => classify(d.Signal) === 'injury').length;
   document.getElementById('sHR').textContent    = data.filter(d => classify(d.Signal) === 'hitrun').length;
 
-  // Determine which keys are new (skip on first load)
+  // Determine new keys (skip on first load to avoid false positives)
   const currentKeys = new Set(data.map(incidentKey));
-  const newKeys = isFirstLoad ? new Set() : new Set([...currentKeys].filter(k => !seenKeys.has(k)));
+  const newKeys     = firstLoad ? new Set() : new Set([...currentKeys].filter(k => !seenKeys.has(k)));
   seenKeys = currentKeys;
 
-  // Feed
   const list = document.getElementById('feedList');
   list.innerHTML = '';
   markerRefs = [];
 
   data.forEach((item, i) => {
-    const t = classify(item.Signal);
-    const isNew = newKeys.has(incidentKey(item));
+    const t       = classify(item.Signal);
+    const stale   = isStale(item.CreateTime);
+    const isNew   = newKeys.has(incidentKey(item));
+    const mapsUrl = (item.Latitude && item.Longitude)
+      ? 'https://maps.google.com/?q=' + item.Latitude + ',' + item.Longitude
+      : null;
 
-    // Card
+    // ── Card ──────────────────────────────
     const card = document.createElement('div');
-    card.className = `card t-${t}`;
+    card.className = 'card t-' + t + (stale ? ' stale' : '');
     card.style.animationDelay = (i * 40) + 'ms';
 
-    const locBit  = item.Location ? `<span>📍 ${item.Location}</span>` : '';
-    const gridBit = item.Grid     ? `<span>GRID ${item.Grid}</span>`    : '';
-    const newBit  = isNew         ? `<span class="badge-new">New</span>` : '';
-    const mapsUrl = item.Latitude && item.Longitude
-      ? `https://maps.google.com/?q=${item.Latitude},${item.Longitude}`
-      : null;
-    const mapsBit = mapsUrl
-      ? `<a class="maps-link" href="${mapsUrl}" target="_blank" rel="noopener" onclick="event.stopPropagation()">↗ Maps</a>`
+    const newBit      = isNew        ? '<span class="badge-new">New</span>' : '';
+    const staleBit    = stale        ? '<span class="stale-label">(3h+)</span>' : '';
+    const landmarkBit = item.Location
+      ? '<div class="card-landmark">📍 ' + esc(item.Location) + '</div>'
+      : '';
+    const gridBit  = item.Grid ? '<span>GRID ' + esc(item.Grid) + '</span>' : '';
+    const mapsBit  = mapsUrl
+      ? '<a class="maps-link" href="' + mapsUrl + '" target="_blank" rel="noopener" onclick="event.stopPropagation()">↗ Maps</a>'
       : '';
 
-    card.innerHTML = `
-      <div class="card-row">
-        <span class="badge t-${t}">${item.Signal || 'UNKNOWN'}${newBit}</span>
-        <span class="card-time">${fmtTime(item.CreateTime)}</span>
-      </div>
-      <div class="card-addr">${item.Address || 'Unknown address'}</div>
-      <div class="card-meta"><span>${ago(item.CreateTime)}</span>${locBit}${gridBit}${mapsBit}</div>
-    `;
+    card.innerHTML =
+      '<div class="card-row">' +
+        '<span class="badge t-' + t + '">' + esc(item.Signal || 'UNKNOWN') + newBit + '</span>' +
+        '<span class="card-time">' + fmtTime(item.CreateTime) + staleBit + '</span>' +
+      '</div>' +
+      '<div class="card-addr">' + esc(item.Address || 'Unknown address') + '</div>' +
+      landmarkBit +
+      '<div class="card-meta"><span>' + ago(item.CreateTime) + '</span>' + gridBit + mapsBit + '</div>';
 
     card.onclick = () => {
       list.querySelectorAll('.card').forEach(c => c.classList.remove('selected'));
       card.classList.add('selected');
       if (item.Latitude && item.Longitude) {
-        const mk = markerRefs[i];
+        const mk    = markerRefs[i];
         const doFly = () => {
           layerGroup.zoomToShowLayer(mk, () => {
             map.flyTo([item.Latitude, item.Longitude], 15, { duration: 0.7 });
             mk.openPopup();
           });
         };
-        if (window.innerWidth <= 900) {
-          switchTab('map');
-          setTimeout(doFly, 100);
-        } else {
-          doFly();
-        }
+        if (window.innerWidth <= 900) { switchTab('map'); setTimeout(doFly, 100); }
+        else doFly();
       }
     };
     list.appendChild(card);
 
-    // Marker
+    // ── Map marker ────────────────────────
     if (item.Latitude && item.Longitude) {
       const icon = L.divIcon({
         className: '',
-        html: `<div class="pulse-marker m-${t}"></div>`,
+        html: '<div class="pulse-marker m-' + t + '"></div>',
         iconSize: [14, 14], iconAnchor: [7, 7]
       });
 
+      // Street View thumbnail (only when API key is configured)
+      const svHtml = GOOGLE_API_KEY
+        ? '<div class="popup-sv">' +
+            '<span class="popup-sv-loading">Loading view…</span>' +
+            '<img src="https://maps.googleapis.com/maps/api/streetview' +
+              '?size=260x110&location=' + item.Latitude + ',' + item.Longitude +
+              '&fov=90&pitch=5&source=outdoor&key=' + GOOGLE_API_KEY + '"' +
+              ' onload="this.style.display=\'block\';this.previousElementSibling.style.display=\'none\'"' +
+              ' onerror="this.closest(\'.popup-sv\').style.display=\'none\'"' +
+              ' alt="" />' +
+          '</div>'
+        : '';
+
+      const landmarkPopup = item.Location
+        ? '<div class="pop-landmark">📍 ' + esc(item.Location) + '</div>'
+        : '';
       const mapsPopupLink = mapsUrl
-        ? `<a class="maps-link" href="${mapsUrl}" target="_blank" rel="noopener" style="display:inline-block;margin-top:4px">↗ Open in Google Maps</a>`
+        ? '<a class="maps-link" href="' + mapsUrl + '" target="_blank" rel="noopener" style="display:inline-block;margin-top:5px">↗ Open in Google Maps</a>'
         : '';
 
       const mk = L.marker([item.Latitude, item.Longitude], { icon })
-        .bindPopup(`
-          <div class="pop-sig" style="color:${COLORS[t]}">${item.Signal}</div>
-          <div class="pop-addr">${item.Address}</div>
-          ${item.Location ? '<div style="color:var(--text-secondary);font-size:10px;margin-bottom:2px">' + item.Location + '</div>' : ''}
-          <div class="pop-time">${fmtTime(item.CreateTime)} · ${ago(item.CreateTime)} · Grid ${item.Grid || '—'}</div>
-          ${mapsPopupLink}
-        `, { closeButton: false });
+        .bindPopup(
+          '<div class="pop-sig" style="color:' + COLORS[t] + '">' + esc(item.Signal) + '</div>' +
+          '<div class="pop-addr">' + esc(item.Address) + '</div>' +
+          landmarkPopup +
+          '<div class="pop-time">' + fmtTime(item.CreateTime) + ' · ' + ago(item.CreateTime) + ' · Grid ' + esc(item.Grid || '—') + '</div>' +
+          svHtml +
+          mapsPopupLink,
+          { closeButton: false, maxWidth: GOOGLE_API_KEY ? 290 : 220 }
+        );
 
       layerGroup.addLayer(mk);
       markerRefs[i] = mk;
     }
   });
 
-  // Fit bounds
+  // Fit all markers in view
   const pts = data.filter(d => d.Latitude && d.Longitude).map(d => [d.Latitude, d.Longitude]);
   if (pts.length > 1) map.fitBounds(pts, { padding: [40, 40], maxZoom: 13 });
 }
@@ -939,11 +1179,9 @@ function startCountdown() {
   nextRefreshAt = Date.now() + 60000;
   if (countdownInterval) clearInterval(countdownInterval);
   countdownInterval = setInterval(() => {
-    const sec = Math.max(0, Math.round((nextRefreshAt - Date.now()) / 1000));
-    const footer = document.getElementById('footer');
-    const base = footer.dataset.base || '';
-    const autoEl = footer.querySelector('.auto-badge');
-    if (autoEl) autoEl.textContent = `Next refresh in ${sec}s`;
+    const sec    = Math.max(0, Math.round((nextRefreshAt - Date.now()) / 1000));
+    const autoEl = document.querySelector('#footer .auto-badge');
+    if (autoEl) autoEl.textContent = 'Next refresh in ' + sec + 's';
   }, 1000);
 }
 
@@ -953,52 +1191,42 @@ async function loadData() {
   btn.textContent = 'Loading…';
   layerGroup.clearLayers();
 
-  let data = null;
+  let data   = null;
   let source = 'cached';
 
-  // Attempt 1: Vercel proxy
   try {
     const r = await fetch('/api/traffic', { signal: AbortSignal.timeout(5000) });
-    if (r.ok) {
-      data = await r.json();
-      if (Array.isArray(data) && data.length) source = 'live';
-      else data = null;
-    }
+    if (r.ok) { data = await r.json(); if (Array.isArray(data) && data.length) source = 'live'; else data = null; }
   } catch {}
 
-  // Attempt 2: direct MDPD
   if (!data) {
     try {
       const r = await fetch('https://traffic.mdpd.com/api/traffic', { signal: AbortSignal.timeout(5000) });
-      if (r.ok) {
-        data = await r.json();
-        if (Array.isArray(data) && data.length) source = 'live';
-        else data = null;
-      }
+      if (r.ok) { data = await r.json(); if (Array.isArray(data) && data.length) source = 'live'; else data = null; }
     } catch {}
   }
 
-  // Attempt 3: fallback
-  if (!data) {
-    data = FALLBACK_DATA;
-    source = 'cached';
-  }
+  if (!data) { data = FALLBACK_DATA; source = 'cached'; }
 
   isLive = source === 'live';
 
   const badge = document.getElementById('sourceMode');
-  badge.className = 'source-mode ' + source;
+  badge.className   = 'source-mode ' + source;
   badge.textContent = source === 'live' ? 'LIVE' : 'CACHED';
 
   render(data, isFirstLoad);
   isFirstLoad = false;
 
-  const now = new Date();
-  const ts = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+  // Persist incident count for the history chart
+  saveHistory(data.length);
+  if (document.getElementById('historyBar').classList.contains('open')) drawHistoryChart();
+
+  const ts = new Date().toLocaleTimeString('en-US', {
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true
+  });
   const footer = document.getElementById('footer');
-  footer.dataset.base = source === 'live' ? 'LIVE UPDATED ' + ts : 'CACHED · CHECKED ' + ts;
   footer.innerHTML =
-    footer.dataset.base +
+    (source === 'live' ? 'LIVE UPDATED ' : 'CACHED · CHECKED ') + ts +
     '<span class="auto-badge">Next refresh in 60s</span>';
 
   startCountdown();
