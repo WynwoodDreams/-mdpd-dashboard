@@ -1,0 +1,14 @@
+export default async function handler(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET');
+  res.setHeader('Cache-Control', 's-maxage=30, stale-while-revalidate=60');
+
+  try {
+    const response = await fetch('https://traffic.mdpd.com/api/traffic');
+    if (!response.ok) throw new Error(`MDPD API returned ${response.status}`);
+    const data = await response.json();
+    res.status(200).json(data);
+  } catch (err) {
+    res.status(502).json({ error: 'Failed to reach MDPD API', detail: err.message });
+  }
+}
