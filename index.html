@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>MDPD // LIVE TRAFFIC FEED</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Inter+Tight:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+  :root {
+    --bg-primary: #0a0a0c;
+    --bg-card: #111114;
+    --bg-card-hover: #161619;
+    --bg-elevated: #1a1a1e;
+    --border: #222228;
+    --border-accent: #2a2a32;
+    --text-primary: #e8e8ec;
+    --text-secondary: #8888a0;
+    --text-muted: #55556a;
+    --accent-red: #ff3b4f;
+    --accent-orange: #ff8c38;
+    --accent-yellow: #ffd23f;
+    --accent-cyan: #3bfff0;
+    --accent-blue: #3b8fff;
+    --glow-cyan: rgba(59, 255, 240, 0.08);
+    --font-display: 'Inter Tight', sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  /* ── HEADER ── */
+  .header {
+    padding: 20px 28px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    flex-wrap: wrap;
+    background: linear-gradient(180deg, rgba(255,59,79,0.03) 0%, transparent 100%);
+  }
+
+  .header-left { display: flex; flex-direction: column; gap: 5px; }
+
+  .header-tag {
+    font-size: 10px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--accent-red);
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .header-tag .dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--accent-red);
+    animation: pulse-dot 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; box-shadow: 0 0 4px var(--accent-red); }
+    50% { opacity: 0.4; box-shadow: 0 0 14px var(--accent-red); }
+  }
+
+  .header-title {
+    font-family: var(--font-display);
+    font-size: 26px;
+    font-weight: 900;
+    letter-spacing: -1px;
+    line-height: 1;
+    background: linear-gradient(135deg, var(--text-primary) 0%, var(--text-secondary) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .header-sub {
+    font-size: 10px;
+    color: var(--text-muted);
+    letter-spacing: 0.5px;
+  }
+
+  .source-mode {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-weight: 600;
+    margin-left: 6px;
+  }
+
+  .source-mode.live { background: rgba(59,255,240,0.1); color: var(--accent-cyan); }
+  .source-mode.cached { background: rgba(255,210,63,0.1); color: var(--accent-yellow); }
+
+  .header-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+  }
+
+  .status-bar { display: flex; gap: 12px; align-items: center; }
+
+  .stat-pill {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border-radius: 20px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    font-size: 11px;
+    font-weight: 500;
+  }
+
+  .stat-pill .val { color: var(--accent-cyan); font-weight: 700; font-size: 13px; }
+  .stat-pill .label { color: var(--text-muted); }
+
+  .clock {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ── LAYOUT ── */
+  .main-grid {
+    display: grid;
+    grid-template-columns: 1fr 420px;
+    height: calc(100vh - 85px);
+  }
+
+  @media (max-width: 900px) {
+    .main-grid { grid-template-columns: 1fr; height: auto; }
+    .map-panel { height: 50vh; }
+    .feed-panel { height: 50vh; }
+  }
+
+  /* ── MAP ── */
+  .map-panel {
+    position: relative;
+    border-right: 1px solid var(--border);
+  }
+
+  #map { width: 100%; height: 100%; background: var(--bg-primary); }
+
+  .leaflet-container { background: #0a0a0c !important; }
+
+  .pulse-marker {
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    border: 2px solid;
+    position: relative;
+  }
+
+  .pulse-marker::before {
+    content: '';
+    position: absolute;
+    inset: -4px;
+    border-radius: 50%;
+    border: 1.5px solid;
+    opacity: 0;
+    animation: ring-out 2.5s ease-out infinite;
+  }
+
+  @keyframes ring-out {
+    0% { transform: scale(0.8); opacity: 0.6; }
+    100% { transform: scale(2.6); opacity: 0; }
+  }
+
+  .m-accident  { background: rgba(255,59,79,0.5);  border-color: var(--accent-red);    }
+  .m-accident::before  { border-color: var(--accent-red);    }
+  .m-injury   { background: rgba(255,140,56,0.5); border-color: var(--accent-orange);  }
+  .m-injury::before   { border-color: var(--accent-orange);  }
+  .m-hitrun   { background: rgba(255,210,63,0.5); border-color: var(--accent-yellow);  }
+  .m-hitrun::before   { border-color: var(--accent-yellow);  }
+  .m-other    { background: rgba(59,143,255,0.5); border-color: var(--accent-blue);    }
+  .m-other::before    { border-color: var(--accent-blue);    }
+
+  .map-legend {
+    position: absolute;
+    bottom: 16px;
+    left: 16px;
+    z-index: 1000;
+    background: rgba(10,10,12,0.92);
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .legend-row {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 10px; color: var(--text-secondary);
+    letter-spacing: 0.5px; text-transform: uppercase;
+  }
+
+  .legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+  /* ── FEED ── */
+  .feed-panel {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  .feed-top {
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+    background: var(--bg-card);
+  }
+
+  .feed-label {
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    font-weight: 600;
+  }
+
+  .btn-refresh {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    padding: 4px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  .btn-refresh:hover {
+    border-color: var(--accent-cyan);
+    color: var(--accent-cyan);
+    box-shadow: 0 0 12px var(--glow-cyan);
+  }
+
+  .btn-refresh.busy { opacity: 0.4; pointer-events: none; }
+
+  .feed-list {
+    flex: 1;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-accent) transparent;
+  }
+
+  .feed-list::-webkit-scrollbar { width: 4px; }
+  .feed-list::-webkit-scrollbar-track { background: transparent; }
+  .feed-list::-webkit-scrollbar-thumb { background: var(--border-accent); border-radius: 4px; }
+
+  /* ── CARDS ── */
+  .card {
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    transition: background 0.2s;
+    position: relative;
+    animation: slideIn 0.35s ease-out both;
+  }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateX(10px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+
+  .card::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
+    border-radius: 0 2px 2px 0;
+  }
+
+  .card.t-accident::before  { background: var(--accent-red);    }
+  .card.t-injury::before   { background: var(--accent-orange);  }
+  .card.t-hitrun::before   { background: var(--accent-yellow);  }
+  .card.t-other::before    { background: var(--accent-blue);    }
+
+  .card:hover    { background: var(--bg-card-hover); }
+  .card.selected { background: var(--bg-elevated); }
+
+  .card-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 6px;
+    gap: 8px;
+  }
+
+  .badge {
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 3px;
+    white-space: nowrap;
+  }
+
+  .badge.t-accident  { background: rgba(255,59,79,0.12);  color: var(--accent-red);    }
+  .badge.t-injury   { background: rgba(255,140,56,0.12); color: var(--accent-orange);  }
+  .badge.t-hitrun   { background: rgba(255,210,63,0.12); color: var(--accent-yellow);  }
+  .badge.t-other    { background: rgba(59,143,255,0.12); color: var(--accent-blue);    }
+
+  .card-time {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .card-addr {
+    font-family: var(--font-display);
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+    line-height: 1.3;
+  }
+
+  .card-meta {
+    display: flex;
+    gap: 12px;
+    font-size: 10px;
+    color: var(--text-muted);
+    letter-spacing: 0.3px;
+    flex-wrap: wrap;
+  }
+
+  /* ── POPUP ── */
+  .leaflet-popup-content-wrapper {
+    background: rgba(17,17,20,0.95) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 8px !important;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.6) !important;
+    color: var(--text-primary) !important;
+  }
+
+  .leaflet-popup-tip { background: rgba(17,17,20,0.95) !important; }
+
+  .leaflet-popup-content {
+    font-family: var(--font-mono) !important;
+    font-size: 11px !important;
+    line-height: 1.6 !important;
+    margin: 10px 14px !important;
+  }
+
+  .pop-sig {
+    font-size: 10px; font-weight: 700;
+    letter-spacing: 1.5px; text-transform: uppercase;
+    margin-bottom: 3px;
+  }
+
+  .pop-addr {
+    font-family: var(--font-display);
+    font-size: 13px; font-weight: 600;
+    margin-bottom: 3px;
+  }
+
+  .pop-time { color: var(--text-muted); font-size: 10px; }
+
+  /* ── FOOTER ── */
+  .feed-footer {
+    padding: 8px 20px;
+    border-top: 1px solid var(--border);
+    font-size: 9px;
+    color: var(--text-muted);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    text-align: center;
+    flex-shrink: 0;
+    background: var(--bg-card);
+  }
+
+  .auto-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: 8px;
+    color: var(--accent-cyan);
+    opacity: 0.6;
+  }
+
+  .auto-badge::before {
+    content: '';
+    width: 4px; height: 4px;
+    border-radius: 50%;
+    background: var(--accent-cyan);
+  }
+
+  /* ── LOADING ── */
+  .loader-wrap {
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    height: 200px; gap: 16px;
+  }
+
+  .spin-ring {
+    width: 28px; height: 28px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent-cyan);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .loader-text {
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <div class="header-tag"><span class="dot"></span> LIVE FEED — MIAMI-DADE COUNTY</div>
+    <div class="header-title">MDPD TRAFFIC INCIDENTS</div>
+    <div class="header-sub">
+      traffic.mdpd.com
+      <span class="source-mode cached" id="sourceMode">CACHED</span>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="clock" id="clock">--:--:--</div>
+    <div class="status-bar">
+      <div class="stat-pill"><span class="label">ACTIVE</span><span class="val" id="sCount">—</span></div>
+      <div class="stat-pill"><span class="label">INJURIES</span><span class="val" id="sInj">—</span></div>
+      <div class="stat-pill"><span class="label">HIT&amp;RUN</span><span class="val" id="sHR">—</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="main-grid">
+  <div class="map-panel">
+    <div id="map"></div>
+    <div class="map-legend">
+      <div class="legend-row"><div class="legend-dot" style="background:var(--accent-red)"></div>Traffic Accident</div>
+      <div class="legend-row"><div class="legend-dot" style="background:var(--accent-orange)"></div>With Injuries</div>
+      <div class="legend-row"><div class="legend-dot" style="background:var(--accent-yellow)"></div>Hit &amp; Run</div>
+      <div class="legend-row"><div class="legend-dot" style="background:var(--accent-blue)"></div>Other</div>
+    </div>
+  </div>
+
+  <div class="feed-panel">
+    <div class="feed-top">
+      <span class="feed-label">Incident Feed</span>
+      <button class="btn-refresh" id="btnRefresh" onclick="loadData()">Refresh</button>
+    </div>
+    <div class="feed-list" id="feedList">
+      <div class="loader-wrap"><div class="spin-ring"></div><div class="loader-text">Connecting…</div></div>
+    </div>
+    <div class="feed-footer" id="footer">AWAITING DATA</div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════
+// EMBEDDED FALLBACK — last server fetch
+// ══════════════════════════════════════
+const FALLBACK_DATA = [
+  {"CreateTime":"2026-03-11T23:47:33","Signal":"TRAFFIC ACCIDENT","Address":"NW 2ND AVE / NW 175TH ST","Location":"","Grid":"0186","Longitude":-80.20506181,"Latitude":25.93521252},
+  {"CreateTime":"2026-03-11T23:28:16","Signal":"TRAFFIC ACCIDENT","Address":"16601 NW 42ND AVE","Location":"","Grid":"0321","Longitude":-80.2683423,"Latitude":25.92487691},
+  {"CreateTime":"2026-03-11T21:21:59","Signal":"HIT AND RUN","Address":"690 NE 159TH ST","Location":"OAK GROVE PK","Grid":"0335","Longitude":-80.18581768,"Latitude":25.91977603},
+  {"CreateTime":"2026-03-11T21:04:05","Signal":"TRAFFIC ACCIDENT","Address":"SW 88TH ST / SW 132ND AVE","Location":"IFO TMOBILE P/LOT","Grid":"4823","Longitude":-80.40371758,"Latitude":25.68567778},
+  {"CreateTime":"2026-03-11T19:57:47","Signal":"TRAFFIC ACCIDENT WITH INJURIES","Address":"CRANDON BLVD / OCEAN LANE DR","Location":"SHELL","Grid":"1560","Longitude":-80.16216719,"Latitude":25.69933104}
+];
+
+// ══════════════════════════════════════
+// MAP
+// ══════════════════════════════════════
+const map = L.map('map', {
+  center: [25.78, -80.22],
+  zoom: 11,
+  zoomControl: false,
+  attributionControl: false
+});
+L.control.zoom({ position: 'topright' }).addTo(map);
+// Try multiple dark tile providers with fallback
+const tileSources = [
+  'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+  'https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png',
+  'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
+];
+
+let tileIdx = 0;
+function loadTiles(idx) {
+  const layer = L.tileLayer(tileSources[idx], {
+    maxZoom: 19,
+    errorTileUrl: ''
+  }).addTo(map);
+
+  // If this source fails, try the next
+  layer.on('tileerror', function() {
+    if (tileIdx < tileSources.length - 1) {
+      tileIdx++;
+      map.removeLayer(layer);
+      loadTiles(tileIdx);
+    }
+  });
+
+  // Apply a subtle filter only if using the non-dark OSM fallback
+  if (idx === tileSources.length - 1) {
+    document.querySelector('.leaflet-tile-pane').style.filter = 'invert(1) hue-rotate(180deg) brightness(0.7) contrast(1.2) saturate(0.3)';
+  }
+}
+loadTiles(0);
+
+let layerGroup = L.layerGroup().addTo(map);
+let markerRefs = [];
+let isLive = false;
+
+// ══════════════════════════════════════
+// HELPERS
+// ══════════════════════════════════════
+function classify(sig) {
+  const s = (sig || '').toUpperCase();
+  if (s.includes('INJUR'))               return 'injury';
+  if (s.includes('HIT') && s.includes('RUN')) return 'hitrun';
+  if (s.includes('ACCIDENT'))            return 'accident';
+  return 'other';
+}
+
+const COLORS = { accident: '#ff3b4f', injury: '#ff8c38', hitrun: '#ffd23f', other: '#3b8fff' };
+
+function fmtTime(iso) {
+  try { return new Date(iso).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }); }
+  catch { return '—'; }
+}
+
+function ago(iso) {
+  try {
+    const m = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+    if (m < 1) return 'just now';
+    if (m < 60) return m + 'm ago';
+    const h = Math.floor(m / 60);
+    return h + 'h ' + (m % 60) + 'm ago';
+  } catch { return ''; }
+}
+
+// ══════════════════════════════════════
+// RENDER
+// ══════════════════════════════════════
+function render(data) {
+  // Stats
+  document.getElementById('sCount').textContent = data.length;
+  document.getElementById('sInj').textContent   = data.filter(d => classify(d.Signal) === 'injury').length;
+  document.getElementById('sHR').textContent    = data.filter(d => classify(d.Signal) === 'hitrun').length;
+
+  // Feed
+  const list = document.getElementById('feedList');
+  list.innerHTML = '';
+  markerRefs = [];
+
+  data.forEach((item, i) => {
+    const t = classify(item.Signal);
+
+    // Card
+    const card = document.createElement('div');
+    card.className = `card t-${t}`;
+    card.style.animationDelay = (i * 40) + 'ms';
+
+    const locBit = item.Location ? `<span>📍 ${item.Location}</span>` : '';
+    const gridBit = item.Grid   ? `<span>GRID ${item.Grid}</span>` : '';
+
+    card.innerHTML = `
+      <div class="card-row">
+        <span class="badge t-${t}">${item.Signal || 'UNKNOWN'}</span>
+        <span class="card-time">${fmtTime(item.CreateTime)}</span>
+      </div>
+      <div class="card-addr">${item.Address || 'Unknown address'}</div>
+      <div class="card-meta"><span>${ago(item.CreateTime)}</span>${locBit}${gridBit}</div>
+    `;
+
+    card.onclick = () => {
+      list.querySelectorAll('.card').forEach(c => c.classList.remove('selected'));
+      card.classList.add('selected');
+      if (item.Latitude && item.Longitude) {
+        map.flyTo([item.Latitude, item.Longitude], 15, { duration: 0.7 });
+        if (markerRefs[i]) markerRefs[i].openPopup();
+      }
+    };
+    list.appendChild(card);
+
+    // Marker
+    if (item.Latitude && item.Longitude) {
+      const icon = L.divIcon({
+        className: '',
+        html: `<div class="pulse-marker m-${t}"></div>`,
+        iconSize: [14, 14], iconAnchor: [7, 7]
+      });
+
+      const mk = L.marker([item.Latitude, item.Longitude], { icon })
+        .bindPopup(`
+          <div class="pop-sig" style="color:${COLORS[t]}">${item.Signal}</div>
+          <div class="pop-addr">${item.Address}</div>
+          ${item.Location ? '<div style="color:var(--text-secondary);font-size:10px;margin-bottom:2px">' + item.Location + '</div>' : ''}
+          <div class="pop-time">${fmtTime(item.CreateTime)} · ${ago(item.CreateTime)} · Grid ${item.Grid || '—'}</div>
+        `, { closeButton: false });
+
+      layerGroup.addLayer(mk);
+      markerRefs[i] = mk;
+    }
+  });
+
+  // Fit bounds
+  const pts = data.filter(d => d.Latitude && d.Longitude).map(d => [d.Latitude, d.Longitude]);
+  if (pts.length > 1) map.fitBounds(pts, { padding: [40, 40], maxZoom: 13 });
+}
+
+// ══════════════════════════════════════
+// FETCH STRATEGY
+// 1. Try /api/traffic (Vercel proxy)
+// 2. Try direct MDPD API
+// 3. Fall back to embedded data
+// ══════════════════════════════════════
+async function loadData() {
+  const btn = document.getElementById('btnRefresh');
+  btn.classList.add('busy');
+  btn.textContent = 'Loading…';
+  layerGroup.clearLayers();
+
+  let data = null;
+  let source = 'cached';
+
+  // Attempt 1: Vercel proxy
+  try {
+    const r = await fetch('/api/traffic', { signal: AbortSignal.timeout(5000) });
+    if (r.ok) {
+      data = await r.json();
+      if (Array.isArray(data) && data.length) source = 'live';
+      else data = null;
+    }
+  } catch {}
+
+  // Attempt 2: direct MDPD
+  if (!data) {
+    try {
+      const r = await fetch('https://traffic.mdpd.com/api/traffic', { signal: AbortSignal.timeout(5000) });
+      if (r.ok) {
+        data = await r.json();
+        if (Array.isArray(data) && data.length) source = 'live';
+        else data = null;
+      }
+    } catch {}
+  }
+
+  // Attempt 3: fallback
+  if (!data) {
+    data = FALLBACK_DATA;
+    source = 'cached';
+  }
+
+  isLive = source === 'live';
+
+  const badge = document.getElementById('sourceMode');
+  badge.className = 'source-mode ' + source;
+  badge.textContent = source === 'live' ? 'LIVE' : 'CACHED';
+
+  render(data);
+
+  const now = new Date();
+  const ts = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+  document.getElementById('footer').innerHTML =
+    (source === 'live' ? 'LIVE UPDATED ' : 'SHOWING CACHED DATA · CHECKED ') + ts +
+    '<span class="auto-badge">AUTO-REFRESH 60s</span>';
+
+  btn.classList.remove('busy');
+  btn.textContent = 'Refresh';
+}
+
+// ══════════════════════════════════════
+// CLOCK
+// ══════════════════════════════════════
+function tick() {
+  document.getElementById('clock').textContent = new Date().toLocaleTimeString('en-US', {
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true, timeZone: 'America/New_York'
+  }) + ' EST';
+}
+setInterval(tick, 1000);
+tick();
+
+// ══════════════════════════════════════
+// INIT
+// ══════════════════════════════════════
+loadData();
+setInterval(loadData, 60000);
+</script>
+</body>
+</html>
