@@ -7,7 +7,10 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Inter+Tight:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.css" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.Default.css" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.min.js"></script>
 <style>
   :root {
     --bg-primary: #0a0a0c;
@@ -486,6 +489,67 @@
     background: var(--accent-cyan);
   }
 
+  /* ── NEW BADGE ── */
+  .badge-new {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 8px;
+    font-weight: 800;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    padding: 2px 6px;
+    border-radius: 3px;
+    background: rgba(59,255,240,0.15);
+    color: var(--accent-cyan);
+    border: 1px solid rgba(59,255,240,0.35);
+    animation: new-flash 1s ease-out 3;
+    vertical-align: middle;
+    margin-left: 6px;
+    flex-shrink: 0;
+  }
+
+  .badge-new::before {
+    content: '';
+    width: 4px; height: 4px;
+    border-radius: 50%;
+    background: var(--accent-cyan);
+    animation: pulse-dot 1s ease-in-out infinite;
+    flex-shrink: 0;
+  }
+
+  @keyframes new-flash {
+    0%, 100% { background: rgba(59,255,240,0.15); }
+    50%       { background: rgba(59,255,240,0.32); box-shadow: 0 0 8px rgba(59,255,240,0.3); }
+  }
+
+  /* ── MAPS LINK ── */
+  .maps-link {
+    color: var(--accent-blue);
+    text-decoration: none;
+    font-size: 10px;
+    opacity: 0.7;
+    transition: opacity 0.15s;
+    white-space: nowrap;
+  }
+  .maps-link:hover { opacity: 1; text-decoration: underline; }
+
+  /* ── CLUSTER OVERRIDES ── */
+  .marker-cluster-small,
+  .marker-cluster-medium,
+  .marker-cluster-large {
+    background-color: rgba(59,255,240,0.15) !important;
+  }
+  .marker-cluster-small div,
+  .marker-cluster-medium div,
+  .marker-cluster-large div {
+    background-color: rgba(59,255,240,0.35) !important;
+    color: var(--accent-cyan) !important;
+    font-family: var(--font-mono) !important;
+    font-weight: 700 !important;
+    font-size: 11px !important;
+  }
+
   /* ── LOADING ── */
   .loader-wrap {
     display: flex; flex-direction: column;
@@ -720,9 +784,15 @@ function loadTiles(idx) {
 }
 loadTiles(0);
 
-let layerGroup = L.layerGroup().addTo(map);
+let layerGroup = L.markerClusterGroup({
+  showCoverageOnHover: false,
+  maxClusterRadius: 50,
+  spiderfyOnMaxZoom: true,
+  zoomToBoundsOnClick: true
+}).addTo(map);
 let markerRefs = [];
 let isLive = false;
+let seenKeys = new Set();
 
 // ══════════════════════════════════════
 // HELPERS
@@ -755,11 +825,20 @@ function ago(iso) {
 // ══════════════════════════════════════
 // RENDER
 // ══════════════════════════════════════
-function render(data) {
+function incidentKey(item) {
+  return item.CreateTime + '|' + item.Address;
+}
+
+function render(data, isFirstLoad) {
   // Stats
   document.getElementById('sCount').textContent = data.length;
   document.getElementById('sInj').textContent   = data.filter(d => classify(d.Signal) === 'injury').length;
   document.getElementById('sHR').textContent    = data.filter(d => classify(d.Signal) === 'hitrun').length;
+
+  // Determine which keys are new (skip on first load)
+  const currentKeys = new Set(data.map(incidentKey));
+  const newKeys = isFirstLoad ? new Set() : new Set([...currentKeys].filter(k => !seenKeys.has(k)));
+  seenKeys = currentKeys;
 
   // Feed
   const list = document.getElementById('feedList');
@@ -768,38 +847,48 @@ function render(data) {
 
   data.forEach((item, i) => {
     const t = classify(item.Signal);
+    const isNew = newKeys.has(incidentKey(item));
 
     // Card
     const card = document.createElement('div');
     card.className = `card t-${t}`;
     card.style.animationDelay = (i * 40) + 'ms';
 
-    const locBit = item.Location ? `<span>📍 ${item.Location}</span>` : '';
-    const gridBit = item.Grid   ? `<span>GRID ${item.Grid}</span>` : '';
+    const locBit  = item.Location ? `<span>📍 ${item.Location}</span>` : '';
+    const gridBit = item.Grid     ? `<span>GRID ${item.Grid}</span>`    : '';
+    const newBit  = isNew         ? `<span class="badge-new">New</span>` : '';
+    const mapsUrl = item.Latitude && item.Longitude
+      ? `https://maps.google.com/?q=${item.Latitude},${item.Longitude}`
+      : null;
+    const mapsBit = mapsUrl
+      ? `<a class="maps-link" href="${mapsUrl}" target="_blank" rel="noopener" onclick="event.stopPropagation()">↗ Maps</a>`
+      : '';
 
     card.innerHTML = `
       <div class="card-row">
-        <span class="badge t-${t}">${item.Signal || 'UNKNOWN'}</span>
+        <span class="badge t-${t}">${item.Signal || 'UNKNOWN'}${newBit}</span>
         <span class="card-time">${fmtTime(item.CreateTime)}</span>
       </div>
       <div class="card-addr">${item.Address || 'Unknown address'}</div>
-      <div class="card-meta"><span>${ago(item.CreateTime)}</span>${locBit}${gridBit}</div>
+      <div class="card-meta"><span>${ago(item.CreateTime)}</span>${locBit}${gridBit}${mapsBit}</div>
     `;
 
     card.onclick = () => {
       list.querySelectorAll('.card').forEach(c => c.classList.remove('selected'));
       card.classList.add('selected');
       if (item.Latitude && item.Longitude) {
-        // On mobile, switch to map tab first, then fly
+        const mk = markerRefs[i];
+        const doFly = () => {
+          layerGroup.zoomToShowLayer(mk, () => {
+            map.flyTo([item.Latitude, item.Longitude], 15, { duration: 0.7 });
+            mk.openPopup();
+          });
+        };
         if (window.innerWidth <= 900) {
           switchTab('map');
-          setTimeout(() => {
-            map.flyTo([item.Latitude, item.Longitude], 15, { duration: 0.7 });
-            if (markerRefs[i]) markerRefs[i].openPopup();
-          }, 100);
+          setTimeout(doFly, 100);
         } else {
-          map.flyTo([item.Latitude, item.Longitude], 15, { duration: 0.7 });
-          if (markerRefs[i]) markerRefs[i].openPopup();
+          doFly();
         }
       }
     };
@@ -813,12 +902,17 @@ function render(data) {
         iconSize: [14, 14], iconAnchor: [7, 7]
       });
 
+      const mapsPopupLink = mapsUrl
+        ? `<a class="maps-link" href="${mapsUrl}" target="_blank" rel="noopener" style="display:inline-block;margin-top:4px">↗ Open in Google Maps</a>`
+        : '';
+
       const mk = L.marker([item.Latitude, item.Longitude], { icon })
         .bindPopup(`
           <div class="pop-sig" style="color:${COLORS[t]}">${item.Signal}</div>
           <div class="pop-addr">${item.Address}</div>
           ${item.Location ? '<div style="color:var(--text-secondary);font-size:10px;margin-bottom:2px">' + item.Location + '</div>' : ''}
           <div class="pop-time">${fmtTime(item.CreateTime)} · ${ago(item.CreateTime)} · Grid ${item.Grid || '—'}</div>
+          ${mapsPopupLink}
         `, { closeButton: false });
 
       layerGroup.addLayer(mk);
@@ -837,6 +931,22 @@ function render(data) {
 // 2. Try direct MDPD API
 // 3. Fall back to embedded data
 // ══════════════════════════════════════
+let isFirstLoad = true;
+let nextRefreshAt = null;
+let countdownInterval = null;
+
+function startCountdown() {
+  nextRefreshAt = Date.now() + 60000;
+  if (countdownInterval) clearInterval(countdownInterval);
+  countdownInterval = setInterval(() => {
+    const sec = Math.max(0, Math.round((nextRefreshAt - Date.now()) / 1000));
+    const footer = document.getElementById('footer');
+    const base = footer.dataset.base || '';
+    const autoEl = footer.querySelector('.auto-badge');
+    if (autoEl) autoEl.textContent = `Next refresh in ${sec}s`;
+  }, 1000);
+}
+
 async function loadData() {
   const btn = document.getElementById('btnRefresh');
   btn.classList.add('busy');
@@ -880,13 +990,18 @@ async function loadData() {
   badge.className = 'source-mode ' + source;
   badge.textContent = source === 'live' ? 'LIVE' : 'CACHED';
 
-  render(data);
+  render(data, isFirstLoad);
+  isFirstLoad = false;
 
   const now = new Date();
   const ts = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
-  document.getElementById('footer').innerHTML =
-    (source === 'live' ? 'LIVE UPDATED ' : 'SHOWING CACHED DATA · CHECKED ') + ts +
-    '<span class="auto-badge">AUTO-REFRESH 60s</span>';
+  const footer = document.getElementById('footer');
+  footer.dataset.base = source === 'live' ? 'LIVE UPDATED ' + ts : 'CACHED · CHECKED ' + ts;
+  footer.innerHTML =
+    footer.dataset.base +
+    '<span class="auto-badge">Next refresh in 60s</span>';
+
+  startCountdown();
 
   btn.classList.remove('busy');
   btn.textContent = 'Refresh';
