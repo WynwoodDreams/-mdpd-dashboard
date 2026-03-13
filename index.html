@@ -273,6 +273,119 @@
 
   .legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 
+  .legend-sep {
+    height: 1px;
+    background: var(--border);
+    margin: 4px 0;
+  }
+
+  /* ── MAP LAYER CONTROLS ── */
+  .map-controls {
+    position: absolute;
+    top: 10px; right: 48px;
+    z-index: 1000;
+    background: rgba(10,10,12,0.92);
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 152px;
+  }
+
+  .ctrl-title {
+    font-size: 9px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    font-weight: 600;
+    padding-bottom: 5px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 2px;
+  }
+
+  .ctrl-row {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 10px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    user-select: none;
+    letter-spacing: 0.4px;
+  }
+
+  .ctrl-row input[type="checkbox"] {
+    accent-color: var(--accent-cyan);
+    width: 12px; height: 12px;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  .ctrl-row:hover { color: var(--text-primary); }
+
+  .ctrl-swatch {
+    width: 8px; height: 8px;
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+
+  /* ── LANDMARK MARKERS ── */
+  .lm-marker {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    font-size: 9px;
+    font-weight: 800;
+    border: 1.5px solid;
+    font-family: var(--font-mono);
+    letter-spacing: -0.5px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.6);
+    cursor: pointer;
+  }
+
+  .lm-hospital { background: rgba(59,255,140,0.18); border-color: #3bff8c; color: #3bff8c; }
+  .lm-airport  { background: rgba(59,143,255,0.18); border-color: #3b8fff; color: #3b8fff; }
+  .lm-police   { background: rgba(110,163,255,0.18); border-color: #6ea3ff; color: #6ea3ff; }
+  .lm-fire     { background: rgba(255,59,79,0.18);   border-color: #ff3b4f; color: #ff3b4f; }
+  .lm-stadium  { background: rgba(200,100,255,0.18); border-color: #c864ff; color: #c864ff; }
+  .lm-port     { background: rgba(59,255,240,0.18);  border-color: #3bfff0; color: #3bfff0; }
+  .lm-gov      { background: rgba(255,210,63,0.18);  border-color: #ffd23f; color: #ffd23f; }
+  .lm-flood    { background: rgba(59,143,255,0.2);   border-color: #3b8fff; color: #3b8fff; }
+
+  /* ── HIGHWAY BADGE LABELS ── */
+  .hw-badge {
+    font-size: 9px;
+    font-weight: 800;
+    font-family: var(--font-mono);
+    padding: 2px 5px;
+    border-radius: 3px;
+    border: 1.5px solid;
+    white-space: nowrap;
+    line-height: 1.4;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.6);
+    pointer-events: none;
+  }
+
+  .hw-interstate { background: rgba(13,38,128,0.88);  border-color: #3357c4; color: #aabfff; }
+  .hw-state      { background: rgba(13,64,32,0.88);   border-color: #2e7d2e; color: #6dcc6d; }
+  .hw-toll       { background: rgba(74,45,0,0.88);    border-color: #b87700; color: #ffc844; }
+
+  /* ── FLOOD / WEATHER ANIMATION ── */
+  @keyframes flood-pulse {
+    0%, 100% { opacity: 0.85; }
+    50%       { opacity: 1; filter: drop-shadow(0 0 5px #3b8fff); }
+  }
+
+  @keyframes alert-pulse {
+    0%, 100% { opacity: 0.9; }
+    50%       { opacity: 1; filter: drop-shadow(0 0 6px currentColor); }
+  }
+
   /* ── FEED ── */
   .feed-panel {
     display: flex;
@@ -768,6 +881,30 @@
       <div class="legend-row"><div class="legend-dot" style="background:var(--accent-orange)"></div>With Injuries</div>
       <div class="legend-row"><div class="legend-dot" style="background:var(--accent-yellow)"></div>Hit &amp; Run</div>
       <div class="legend-row"><div class="legend-dot" style="background:var(--accent-blue)"></div>Other</div>
+      <div class="legend-sep"></div>
+      <div class="legend-row"><div class="legend-dot" style="border:1.5px solid #3bff8c;background:transparent"></div>Hospital</div>
+      <div class="legend-row"><div class="legend-dot" style="border:1.5px solid #3b8fff;background:transparent"></div>Airport</div>
+      <div class="legend-row"><div class="legend-dot" style="border-radius:2px;background:#3357c4"></div>Interstate</div>
+      <div class="legend-row"><div class="legend-dot" style="border-radius:2px;background:#2e7d2e"></div>State Road</div>
+      <div class="legend-row"><div class="legend-dot" style="border-radius:2px;background:#b87700"></div>Turnpike/US</div>
+      <div class="legend-row"><div class="legend-dot" style="border:1.5px solid #3b8fff;background:rgba(59,143,255,0.2)"></div>Flood Area</div>
+    </div>
+
+    <!-- Layer Controls -->
+    <div class="map-controls" id="mapControls">
+      <div class="ctrl-title">Map Layers</div>
+      <label class="ctrl-row">
+        <input type="checkbox" id="togLandmarks" checked onchange="toggleMapLayer('landmarks', this.checked)">
+        <span class="ctrl-swatch" style="background:#3bff8c"></span>Landmarks
+      </label>
+      <label class="ctrl-row">
+        <input type="checkbox" id="togHighways" checked onchange="toggleMapLayer('highways', this.checked)">
+        <span class="ctrl-swatch" style="background:#3357c4"></span>Highways
+      </label>
+      <label class="ctrl-row">
+        <input type="checkbox" id="togFlood" checked onchange="toggleMapLayer('flood', this.checked)">
+        <span class="ctrl-swatch" style="background:#3b8fff"></span>Alerts &amp; Flood
+      </label>
     </div>
   </div>
 
@@ -922,6 +1059,287 @@ function isStale(iso) {
 // Minimal HTML escape to prevent XSS from API data
 function esc(s) {
   return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// ══════════════════════════════════════
+// OVERLAY LAYERS — Landmarks · Highways · Flood/Alerts
+// ══════════════════════════════════════
+const overlayLayers = {
+  landmarks: L.layerGroup(),
+  highways:  L.layerGroup(),
+  flood:     L.layerGroup()
+};
+
+// ─── Landmark Data ────────────────────
+const LANDMARKS = [
+  // Hospitals
+  { n:'Jackson Memorial Hospital',     t:'hospital', lat:25.7889, lng:-80.2083, i:'H' },
+  { n:'Baptist Hospital',              t:'hospital', lat:25.6756, lng:-80.3433, i:'H' },
+  { n:'Mount Sinai Medical Center',    t:'hospital', lat:25.8218, lng:-80.1327, i:'H' },
+  { n:'Nicklaus Children\'s Hospital', t:'hospital', lat:25.7041, lng:-80.3101, i:'H' },
+  { n:'Aventura Hospital',             t:'hospital', lat:25.9596, lng:-80.1408, i:'H' },
+  { n:'Kendall Regional Medical',      t:'hospital', lat:25.6833, lng:-80.3973, i:'H' },
+  { n:'Sylvester Cancer Center / UM',  t:'hospital', lat:25.7200, lng:-80.3050, i:'H' },
+  // Airports
+  { n:'Miami Intl Airport (MIA)',      t:'airport',  lat:25.7959, lng:-80.2870, i:'✈' },
+  { n:'Opa-locka Executive Airport',   t:'airport',  lat:25.9070, lng:-80.2786, i:'✈' },
+  { n:'Homestead ARB',                 t:'airport',  lat:25.4889, lng:-80.3831, i:'✈' },
+  // Stadiums & Venues
+  { n:'Hard Rock Stadium',             t:'stadium',  lat:25.9580, lng:-80.2389, i:'★' },
+  { n:'Kaseya Center (Heat)',          t:'stadium',  lat:25.7814, lng:-80.1868, i:'★' },
+  { n:'LoanDepot Park (Marlins)',       t:'stadium',  lat:25.7781, lng:-80.2197, i:'★' },
+  // Police
+  { n:'MDPD Headquarters',             t:'police',   lat:25.7736, lng:-80.3138, i:'PD' },
+  { n:'Miami Police Dept',             t:'police',   lat:25.7724, lng:-80.1963, i:'PD' },
+  // Fire
+  { n:'Miami-Dade Fire Rescue HQ',     t:'fire',     lat:25.7741, lng:-80.2155, i:'FD' },
+  // Port
+  { n:'PortMiami',                     t:'port',     lat:25.7749, lng:-80.1685, i:'⚓' },
+  // Government
+  { n:'Miami-Dade Government Center',  t:'gov',      lat:25.7755, lng:-80.1977, i:'◆' },
+  { n:'Miami-Dade Courthouse',         t:'gov',      lat:25.7742, lng:-80.1952, i:'◆' },
+  { n:'Miami City Hall',               t:'gov',      lat:25.7281, lng:-80.2367, i:'◆' },
+];
+
+const LM_COLORS = {
+  hospital:'#3bff8c', airport:'#3b8fff', police:'#6ea3ff',
+  fire:'#ff3b4f',     stadium:'#c864ff', port:'#3bfff0', gov:'#ffd23f'
+};
+
+// ─── Highway Data ─────────────────────
+// Each highway: polyline coords + label drop points
+const HIGHWAYS = [
+  {
+    id:'i95', name:'I-95', type:'interstate', color:'#3357c4', weight:3, opacity:0.72,
+    coords:[
+      [25.993,-80.188],[25.970,-80.187],[25.950,-80.188],[25.930,-80.189],
+      [25.910,-80.191],[25.890,-80.196],[25.870,-80.203],[25.850,-80.209],
+      [25.828,-80.212],[25.810,-80.210],[25.790,-80.205],[25.775,-80.197],
+      [25.760,-80.191],[25.745,-80.187],[25.727,-80.180],[25.708,-80.166]
+    ],
+    labels:[[25.870,-80.203],[25.790,-80.205]]
+  },
+  {
+    id:'i195', name:'I-195', type:'interstate', color:'#3357c4', weight:3, opacity:0.72,
+    coords:[
+      [25.821,-80.211],[25.816,-80.195],[25.813,-80.175],[25.809,-80.155],[25.805,-80.135]
+    ],
+    labels:[[25.813,-80.175]]
+  },
+  {
+    id:'i395', name:'I-395', type:'interstate', color:'#3357c4', weight:3, opacity:0.72,
+    coords:[
+      [25.773,-80.199],[25.773,-80.183],[25.773,-80.165],[25.773,-80.148],[25.773,-80.138]
+    ],
+    labels:[[25.773,-80.163]]
+  },
+  {
+    id:'sr836', name:'SR-836', type:'state', color:'#2e7d2e', weight:2.5, opacity:0.70,
+    coords:[
+      [25.775,-80.205],[25.774,-80.228],[25.772,-80.252],[25.770,-80.278],
+      [25.769,-80.305],[25.769,-80.330],[25.769,-80.355],[25.769,-80.375]
+    ],
+    labels:[[25.771,-80.252],[25.769,-80.330]]
+  },
+  {
+    id:'sr826', name:'SR-826', type:'state', color:'#2e7d2e', weight:2.5, opacity:0.70,
+    coords:[
+      [25.944,-80.295],[25.920,-80.297],[25.900,-80.299],[25.878,-80.302],
+      [25.855,-80.305],[25.832,-80.309],[25.812,-80.316],[25.795,-80.326],
+      [25.779,-80.336],[25.762,-80.344],[25.740,-80.350],[25.720,-80.355],[25.706,-80.358]
+    ],
+    labels:[[25.878,-80.302],[25.762,-80.344]]
+  },
+  {
+    id:'turnpike', name:'Tpke', type:'toll', color:'#b87700', weight:2.5, opacity:0.65,
+    coords:[
+      [25.944,-80.360],[25.920,-80.359],[25.898,-80.357],[25.875,-80.356],
+      [25.852,-80.356],[25.830,-80.366],[25.808,-80.379],[25.785,-80.392],
+      [25.762,-80.406],[25.740,-80.418],[25.720,-80.428],[25.696,-80.436],
+      [25.674,-80.440],[25.650,-80.442],[25.625,-80.445]
+    ],
+    labels:[[25.852,-80.356],[25.762,-80.406]]
+  },
+  {
+    id:'sr112', name:'SR-112', type:'state', color:'#2e7d2e', weight:2, opacity:0.65,
+    coords:[
+      [25.806,-80.213],[25.800,-80.240],[25.797,-80.265],[25.796,-80.288]
+    ],
+    labels:[[25.800,-80.240]]
+  },
+  {
+    id:'us1', name:'US-1', type:'toll', color:'#a08000', weight:2, opacity:0.55,
+    coords:[
+      [25.775,-80.186],[25.755,-80.187],[25.735,-80.191],[25.715,-80.195],
+      [25.696,-80.199],[25.675,-80.210],[25.655,-80.220]
+    ],
+    labels:[[25.715,-80.195]]
+  },
+  {
+    id:'sr924', name:'SR-924', type:'state', color:'#2e7d2e', weight:2, opacity:0.60,
+    coords:[
+      [25.870,-80.296],[25.871,-80.270],[25.871,-80.245],[25.870,-80.220],[25.868,-80.200]
+    ],
+    labels:[[25.870,-80.245]]
+  },
+];
+
+// ─── Chronic Flood Hotspot Data ───────
+const FLOOD_HOTSPOTS = [
+  { n:'Miami Beach (South Beach)',   lat:25.7694, lng:-80.1313 },
+  { n:'Miami Beach (Mid-North)',     lat:25.8357, lng:-80.1224 },
+  { n:'Key Biscayne',                lat:25.6873, lng:-80.1610 },
+  { n:'Brickell Waterfront',         lat:25.7580, lng:-80.1907 },
+  { n:'Little Havana Low Zone',      lat:25.7673, lng:-80.2249 },
+  { n:'Hialeah Canal Zone',          lat:25.8635, lng:-80.2978 },
+  { n:'Opa-locka Flood Basin',       lat:25.9027, lng:-80.2539 },
+  { n:'Coconut Grove Waterfront',    lat:25.7251, lng:-80.2369 },
+  { n:'Aventura Coastal Low',        lat:25.9568, lng:-80.1372 },
+  { n:'Homestead-Naranja Area',      lat:25.5280, lng:-80.4328 },
+  { n:'Cutler Bay Coastal Zone',     lat:25.5783, lng:-80.3285 },
+];
+
+// ─── Highway badge CSS class ──────────
+function hwBadgeClass(type) {
+  if (type === 'interstate') return 'hw-interstate';
+  if (type === 'state')      return 'hw-state';
+  return 'hw-toll';
+}
+
+// ─── Init Landmarks ───────────────────
+function initLandmarks() {
+  LANDMARKS.forEach(lm => {
+    const c = LM_COLORS[lm.t] || '#aaaaaa';
+    const icon = L.divIcon({
+      className: '',
+      html: '<div class="lm-marker lm-' + lm.t + '" title="' + esc(lm.n) + '">' + lm.i + '</div>',
+      iconSize: [22, 22], iconAnchor: [11, 11]
+    });
+    L.marker([lm.lat, lm.lng], { icon })
+      .bindPopup(
+        '<div class="pop-sig" style="color:' + c + '">' + lm.t.toUpperCase() + '</div>' +
+        '<div class="pop-addr">' + esc(lm.n) + '</div>',
+        { closeButton: false, maxWidth: 210 }
+      )
+      .addTo(overlayLayers.landmarks);
+  });
+}
+
+// ─── Init Highways ────────────────────
+function initHighways() {
+  HIGHWAYS.forEach(hw => {
+    // Polyline
+    L.polyline(hw.coords, {
+      color: hw.color, weight: hw.weight, opacity: hw.opacity,
+      lineJoin: 'round', lineCap: 'round'
+    })
+    .bindTooltip(hw.name, { sticky: true })
+    .addTo(overlayLayers.highways);
+
+    // Badge labels at specified positions
+    const cls = hwBadgeClass(hw.type);
+    hw.labels.forEach(pos => {
+      L.marker(pos, {
+        icon: L.divIcon({
+          className: '',
+          html: '<div class="hw-badge ' + cls + '">' + hw.name + '</div>',
+          iconSize: null, iconAnchor: [20, 8]
+        }),
+        interactive: false,
+        zIndexOffset: -100
+      }).addTo(overlayLayers.highways);
+    });
+  });
+}
+
+// ─── Init Flood / Weather Alert Layer ─
+async function initFloodLayer() {
+  overlayLayers.flood.clearLayers();
+
+  // Static chronic flood hotspot markers
+  FLOOD_HOTSPOTS.forEach(spot => {
+    const icon = L.divIcon({
+      className: '',
+      html: '<div class="lm-marker lm-flood" style="animation:flood-pulse 3s ease-in-out infinite;font-size:12px;">💧</div>',
+      iconSize: [22, 22], iconAnchor: [11, 11]
+    });
+    L.marker([spot.lat, spot.lng], { icon })
+      .bindPopup(
+        '<div class="pop-sig" style="color:#3b8fff">FLOOD-PRONE AREA</div>' +
+        '<div class="pop-addr">' + esc(spot.n) + '</div>' +
+        '<div class="pop-time" style="margin-top:4px;opacity:0.65;font-size:9px">HISTORICALLY FLOOD-PRONE ZONE · Miami-Dade</div>',
+        { closeButton: false, maxWidth: 220 }
+      )
+      .addTo(overlayLayers.flood);
+  });
+
+  // Live NWS weather alerts for Miami-Dade (zones FLZ068 + FLZ070)
+  try {
+    const r = await fetch('https://api.weather.gov/alerts/active?zone=FLZ068,FLZ070', {
+      signal: AbortSignal.timeout(6000),
+      headers: { 'Accept': 'application/geo+json' }
+    });
+    if (!r.ok) return;
+    const data = await r.json();
+    const alerts = (data.features || []).filter(f => {
+      const ev = (f.properties?.event || '').toLowerCase();
+      return ev.includes('flood') || ev.includes('surge') || ev.includes('hurricane') ||
+             ev.includes('tornado') || ev.includes('wind') || ev.includes('rain');
+    });
+
+    alerts.forEach(alert => {
+      const props = alert.properties;
+      const sev   = (props.severity || '').toLowerCase();
+      const c     = (sev === 'extreme' || sev === 'severe') ? '#ff3b4f' :
+                    sev === 'moderate' ? '#ff8c38' : '#ffd23f';
+      const popHtml =
+        '<div class="pop-sig" style="color:' + c + '">' + esc(props.event || 'NWS ALERT') + '</div>' +
+        '<div class="pop-addr">' + esc(props.headline || '') + '</div>' +
+        '<div class="pop-time">Severity: ' + esc(props.severity || '—') + '</div>' +
+        (props.expires ? '<div class="pop-time">Expires: ' + new Date(props.expires).toLocaleString() + '</div>' : '');
+
+      // Draw polygon if geometry is available
+      if (alert.geometry && alert.geometry.coordinates) {
+        const rings = alert.geometry.type === 'Polygon'
+          ? [alert.geometry.coordinates[0]]
+          : alert.geometry.coordinates.map(p => p[0]);
+        rings.forEach(ring => {
+          L.polygon(ring.map(pt => [pt[1], pt[0]]), {
+            color: c, fillColor: c, weight: 1.5,
+            opacity: 0.8, fillOpacity: 0.13, dashArray: '5,4'
+          })
+          .bindPopup(popHtml, { closeButton: false, maxWidth: 260 })
+          .addTo(overlayLayers.flood);
+        });
+      } else {
+        // No geometry: place a warning marker at county centroid
+        const icon = L.divIcon({
+          className: '',
+          html: '<div class="lm-marker" style="background:rgba(255,210,63,0.2);border-color:' + c + ';color:' + c + ';animation:alert-pulse 2.5s ease-in-out infinite;font-size:13px;">⚠</div>',
+          iconSize: [24, 24], iconAnchor: [12, 12]
+        });
+        L.marker([25.78, -80.22], { icon })
+          .bindPopup(popHtml, { closeButton: false, maxWidth: 260 })
+          .addTo(overlayLayers.flood);
+      }
+    });
+  } catch { /* NWS unavailable — static hotspots still shown */ }
+}
+
+// ─── Toggle overlay layers ────────────
+function toggleMapLayer(name, visible) {
+  const layer = overlayLayers[name];
+  if (!layer) return;
+  if (visible) map.addLayer(layer);
+  else         map.removeLayer(layer);
+}
+
+// ─── Init all overlays ────────────────
+function initOverlays() {
+  initLandmarks();
+  initHighways();
+  initFloodLayer(); // async — fires and forgets
+  Object.values(overlayLayers).forEach(l => map.addLayer(l));
 }
 
 // ══════════════════════════════════════
@@ -1251,6 +1669,7 @@ tick();
 // ══════════════════════════════════════
 loadData();
 setInterval(loadData, 60000);
+initOverlays();
 </script>
 </body>
 </html>
