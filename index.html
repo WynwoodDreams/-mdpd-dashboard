@@ -386,6 +386,38 @@
     50%       { opacity: 1; filter: drop-shadow(0 0 6px currentColor); }
   }
 
+  /* ── LANDMARK CLUSTER ── */
+  .lm-cluster {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    background: rgba(200,100,255,0.18);
+    border: 1.5px solid #c864ff;
+    color: #c864ff;
+    font-size: 10px;
+    font-weight: 800;
+    font-family: var(--font-mono);
+    box-shadow: 0 0 10px rgba(200,100,255,0.25);
+  }
+
+  /* ── FLOOD CLUSTER ── */
+  .flood-cluster {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    background: rgba(59,143,255,0.18);
+    border: 1.5px solid #3b8fff;
+    color: #3b8fff;
+    font-size: 10px;
+    font-weight: 800;
+    font-family: var(--font-mono);
+    box-shadow: 0 0 10px rgba(59,143,255,0.25);
+  }
+
   /* ── FEED ── */
   .feed-panel {
     display: flex;
@@ -1065,9 +1097,33 @@ function esc(s) {
 // OVERLAY LAYERS — Landmarks · Highways · Flood/Alerts
 // ══════════════════════════════════════
 const overlayLayers = {
-  landmarks: L.layerGroup(),
-  highways:  L.layerGroup(),
-  flood:     L.layerGroup()
+  landmarks: L.markerClusterGroup({
+    showCoverageOnHover: false,
+    maxClusterRadius: 45,
+    spiderfyOnMaxZoom: true,
+    zoomToBoundsOnClick: true,
+    iconCreateFunction: function(cluster) {
+      return L.divIcon({
+        className: '',
+        html: '<div class="lm-cluster">' + cluster.getChildCount() + '</div>',
+        iconSize: [28, 28], iconAnchor: [14, 14]
+      });
+    }
+  }),
+  highways: L.layerGroup(),
+  flood: L.markerClusterGroup({
+    showCoverageOnHover: false,
+    maxClusterRadius: 40,
+    spiderfyOnMaxZoom: true,
+    zoomToBoundsOnClick: true,
+    iconCreateFunction: function(cluster) {
+      return L.divIcon({
+        className: '',
+        html: '<div class="flood-cluster">' + cluster.getChildCount() + '</div>',
+        iconSize: [26, 26], iconAnchor: [13, 13]
+      });
+    }
+  })
 };
 
 // ─── Landmark Data ────────────────────
@@ -1110,6 +1166,7 @@ const LM_COLORS = {
 // Each highway: polyline coords + label drop points
 const HIGHWAYS = [
   {
+    // Label placed in northern section (Hialeah/Opa-locka area) — far from causeways
     id:'i95', name:'I-95', type:'interstate', color:'#3357c4', weight:3, opacity:0.72,
     coords:[
       [25.993,-80.188],[25.970,-80.187],[25.950,-80.188],[25.930,-80.189],
@@ -1117,40 +1174,45 @@ const HIGHWAYS = [
       [25.828,-80.212],[25.810,-80.210],[25.790,-80.205],[25.775,-80.197],
       [25.760,-80.191],[25.745,-80.187],[25.727,-80.180],[25.708,-80.166]
     ],
-    labels:[[25.870,-80.203],[25.790,-80.205]]
+    labels:[[25.928,-80.189]]
   },
   {
+    // Label placed mid-causeway over Biscayne Bay (away from I-95 junction)
     id:'i195', name:'I-195', type:'interstate', color:'#3357c4', weight:3, opacity:0.72,
     coords:[
       [25.821,-80.211],[25.816,-80.195],[25.813,-80.175],[25.809,-80.155],[25.805,-80.135]
     ],
-    labels:[[25.813,-80.175]]
+    labels:[[25.810,-80.158]]
   },
   {
+    // Label placed mid-causeway over Biscayne Bay
     id:'i395', name:'I-395', type:'interstate', color:'#3357c4', weight:3, opacity:0.72,
     coords:[
       [25.773,-80.199],[25.773,-80.183],[25.773,-80.165],[25.773,-80.148],[25.773,-80.138]
     ],
-    labels:[[25.773,-80.163]]
+    labels:[[25.773,-80.153]]
   },
   {
+    // Labels in western section only — away from the downtown stack
     id:'sr836', name:'SR-836', type:'state', color:'#2e7d2e', weight:2.5, opacity:0.70,
     coords:[
       [25.775,-80.205],[25.774,-80.228],[25.772,-80.252],[25.770,-80.278],
       [25.769,-80.305],[25.769,-80.330],[25.769,-80.355],[25.769,-80.375]
     ],
-    labels:[[25.771,-80.252],[25.769,-80.330]]
+    labels:[[25.769,-80.317]]
   },
   {
+    // Single label in northern Hialeah section
     id:'sr826', name:'SR-826', type:'state', color:'#2e7d2e', weight:2.5, opacity:0.70,
     coords:[
       [25.944,-80.295],[25.920,-80.297],[25.900,-80.299],[25.878,-80.302],
       [25.855,-80.305],[25.832,-80.309],[25.812,-80.316],[25.795,-80.326],
       [25.779,-80.336],[25.762,-80.344],[25.740,-80.350],[25.720,-80.355],[25.706,-80.358]
     ],
-    labels:[[25.878,-80.302],[25.762,-80.344]]
+    labels:[[25.900,-80.299]]
   },
   {
+    // Two labels spaced well apart along its long north-south run
     id:'turnpike', name:'Tpke', type:'toll', color:'#b87700', weight:2.5, opacity:0.65,
     coords:[
       [25.944,-80.360],[25.920,-80.359],[25.898,-80.357],[25.875,-80.356],
@@ -1158,14 +1220,15 @@ const HIGHWAYS = [
       [25.762,-80.406],[25.740,-80.418],[25.720,-80.428],[25.696,-80.436],
       [25.674,-80.440],[25.650,-80.442],[25.625,-80.445]
     ],
-    labels:[[25.852,-80.356],[25.762,-80.406]]
+    labels:[[25.920,-80.359],[25.720,-80.428]]
   },
   {
+    // Short road — single mid label
     id:'sr112', name:'SR-112', type:'state', color:'#2e7d2e', weight:2, opacity:0.65,
     coords:[
       [25.806,-80.213],[25.800,-80.240],[25.797,-80.265],[25.796,-80.288]
     ],
-    labels:[[25.800,-80.240]]
+    labels:[[25.798,-80.252]]
   },
   {
     id:'us1', name:'US-1', type:'toll', color:'#a08000', weight:2, opacity:0.55,
@@ -1176,11 +1239,12 @@ const HIGHWAYS = [
     labels:[[25.715,-80.195]]
   },
   {
+    // Short east-west road — single mid label
     id:'sr924', name:'SR-924', type:'state', color:'#2e7d2e', weight:2, opacity:0.60,
     coords:[
       [25.870,-80.296],[25.871,-80.270],[25.871,-80.245],[25.870,-80.220],[25.868,-80.200]
     ],
-    labels:[[25.870,-80.245]]
+    labels:[[25.871,-80.248]]
   },
 ];
 
