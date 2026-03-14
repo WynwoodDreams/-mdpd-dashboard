@@ -262,13 +262,20 @@
     padding: 10px 14px;
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 5px;
+  }
+
+  .legend-cols {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 5px 16px;
   }
 
   .legend-row {
-    display: flex; align-items: center; gap: 8px;
+    display: flex; align-items: center; gap: 7px;
     font-size: 10px; color: var(--text-secondary);
     letter-spacing: 0.5px; text-transform: uppercase;
+    white-space: nowrap;
   }
 
   .legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
@@ -276,7 +283,7 @@
   .legend-sep {
     height: 1px;
     background: var(--border);
-    margin: 4px 0;
+    margin: 3px 0;
   }
 
   /* ── MAP LAYER CONTROLS ── */
@@ -288,12 +295,21 @@
     backdrop-filter: blur(12px);
     border: 1px solid var(--border);
     border-radius: 8px;
-    padding: 10px 14px;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
+    overflow: hidden;
     min-width: 152px;
   }
+
+  .ctrl-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 14px;
+    cursor: pointer;
+    user-select: none;
+    gap: 10px;
+  }
+
+  .ctrl-header:hover { background: rgba(255,255,255,0.03); }
 
   .ctrl-title {
     font-size: 9px;
@@ -301,10 +317,31 @@
     text-transform: uppercase;
     color: var(--text-muted);
     font-weight: 600;
-    padding-bottom: 5px;
-    border-bottom: 1px solid var(--border);
-    margin-bottom: 2px;
   }
+
+  .ctrl-toggle {
+    font-size: 9px;
+    color: var(--text-muted);
+    transition: transform 0.2s;
+    line-height: 1;
+  }
+
+  .map-controls.open .ctrl-toggle { transform: rotate(180deg); }
+
+  .ctrl-body {
+    display: none;
+    padding: 2px 14px 10px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  /* Default open — body is visible; JS toggles .open class */
+  .map-controls:not(.collapsed) .ctrl-body { display: flex; }
+  .map-controls.collapsed .ctrl-body       { display: none; }
+  .map-controls.collapsed .ctrl-toggle     { transform: rotate(0deg); }
+  .map-controls:not(.collapsed) .ctrl-toggle { transform: rotate(180deg); }
 
   .ctrl-row {
     display: flex;
@@ -909,40 +946,49 @@
   <div class="map-panel" id="mapPanel">
     <div id="map"></div>
     <div class="map-legend">
-      <div class="legend-row"><div class="legend-dot" style="background:var(--accent-red)"></div>Traffic Accident</div>
-      <div class="legend-row"><div class="legend-dot" style="background:var(--accent-orange)"></div>With Injuries</div>
-      <div class="legend-row"><div class="legend-dot" style="background:var(--accent-yellow)"></div>Hit &amp; Run</div>
-      <div class="legend-row"><div class="legend-dot" style="background:var(--accent-blue)"></div>Other</div>
-      <div class="legend-sep"></div>
-      <div class="legend-row"><div class="legend-dot" style="border:1.5px solid #3bff8c;background:transparent"></div>Hospital</div>
-      <div class="legend-row"><div class="legend-dot" style="border:1.5px solid #3b8fff;background:transparent"></div>Airport</div>
-      <div class="legend-row"><div class="legend-dot" style="border-radius:2px;background:#3357c4"></div>Interstate</div>
-      <div class="legend-row"><div class="legend-dot" style="border-radius:2px;background:#2e7d2e"></div>State Road</div>
-      <div class="legend-row"><div class="legend-dot" style="border-radius:2px;background:#b87700"></div>Turnpike/US</div>
-      <div class="legend-row"><div class="legend-dot" style="border:1.5px solid #3b8fff;background:rgba(59,143,255,0.2)"></div>Flood Area</div>
+      <!-- Two-column grid: incidents left, map symbols right -->
+      <div class="legend-cols">
+        <div class="legend-row"><div class="legend-dot" style="background:var(--accent-red)"></div>Accident</div>
+        <div class="legend-row"><div class="legend-dot" style="border:1.5px solid #3bff8c;background:transparent"></div>Hospital</div>
+        <div class="legend-row"><div class="legend-dot" style="background:var(--accent-orange)"></div>Injuries</div>
+        <div class="legend-row"><div class="legend-dot" style="border:1.5px solid #3b8fff;background:transparent"></div>Airport</div>
+        <div class="legend-row"><div class="legend-dot" style="background:var(--accent-yellow)"></div>Hit &amp; Run</div>
+        <div class="legend-row"><div class="legend-dot" style="border-radius:2px;background:#3357c4"></div>Interstate</div>
+        <div class="legend-row"><div class="legend-dot" style="background:var(--accent-blue)"></div>Other</div>
+        <div class="legend-row"><div class="legend-dot" style="border-radius:2px;background:#2e7d2e"></div>State Rd</div>
+        <div class="legend-row" style="opacity:0"></div><!-- spacer -->
+        <div class="legend-row"><div class="legend-dot" style="border-radius:2px;background:#b87700"></div>Tpke/US</div>
+        <div class="legend-row" style="opacity:0"></div><!-- spacer -->
+        <div class="legend-row"><div class="legend-dot" style="border:1.5px solid #3b8fff;background:rgba(59,143,255,0.2)"></div>Flood</div>
+      </div>
     </div>
 
     <!-- Layer Controls -->
     <div class="map-controls" id="mapControls">
-      <div class="ctrl-title">Map Layers</div>
-      <label class="ctrl-row">
-        <input type="checkbox" id="togLandmarks" checked onchange="toggleMapLayer('landmarks', this.checked)">
-        <span class="ctrl-swatch" style="background:#3bff8c"></span>Landmarks
-      </label>
-      <label class="ctrl-row">
-        <input type="checkbox" id="togHighways" checked onchange="toggleMapLayer('highways', this.checked)">
-        <span class="ctrl-swatch" style="background:#3357c4"></span>Highways
-      </label>
-      <label class="ctrl-row">
-        <input type="checkbox" id="togFlood" checked onchange="toggleMapLayer('flood', this.checked)">
-        <span class="ctrl-swatch" style="background:#3b8fff"></span>Alerts &amp; Flood
-      </label>
+      <div class="ctrl-header" onclick="toggleMapControls()">
+        <span class="ctrl-title">Map Layers</span>
+        <span class="ctrl-toggle">▼</span>
+      </div>
+      <div class="ctrl-body">
+        <label class="ctrl-row">
+          <input type="checkbox" id="togLandmarks" checked onchange="toggleMapLayer('landmarks', this.checked)">
+          <span class="ctrl-swatch" style="background:#3bff8c"></span>Landmarks
+        </label>
+        <label class="ctrl-row">
+          <input type="checkbox" id="togHighways" checked onchange="toggleMapLayer('highways', this.checked)">
+          <span class="ctrl-swatch" style="background:#3357c4"></span>Highways
+        </label>
+        <label class="ctrl-row">
+          <input type="checkbox" id="togFlood" checked onchange="toggleMapLayer('flood', this.checked)">
+          <span class="ctrl-swatch" style="background:#3b8fff"></span>Alerts &amp; Flood
+        </label>
+      </div>
     </div>
   </div>
 
   <div class="feed-panel tab-active" id="feedPanel">
     <div class="feed-top">
-      <span class="feed-label">Incident Feed</span>
+      <span class="feed-label">Incident Feed <span id="feedCount" style="color:var(--accent-cyan);opacity:0.7;font-size:9px;margin-left:4px"></span></span>
       <button class="btn-refresh" id="btnRefresh" onclick="loadData()">Refresh</button>
     </div>
 
@@ -1398,6 +1444,11 @@ function toggleMapLayer(name, visible) {
   else         map.removeLayer(layer);
 }
 
+// ─── Collapse / expand Map Layers panel ─
+function toggleMapControls() {
+  document.getElementById('mapControls').classList.toggle('collapsed');
+}
+
 // ─── Init all overlays ────────────────
 function initOverlays() {
   initLandmarks();
@@ -1539,6 +1590,8 @@ function render(data, firstLoad) {
   document.getElementById('sCount').textContent = data.length;
   document.getElementById('sInj').textContent   = data.filter(d => classify(d.Signal) === 'injury').length;
   document.getElementById('sHR').textContent    = data.filter(d => classify(d.Signal) === 'hitrun').length;
+  const feedCountEl = document.getElementById('feedCount');
+  if (feedCountEl) feedCountEl.textContent = '· ' + data.length + ' active';
 
   // Determine new keys (skip on first load to avoid false positives)
   const currentKeys = new Set(data.map(incidentKey));
@@ -1664,6 +1717,9 @@ function startCountdown() {
     const sec    = Math.max(0, Math.round((nextRefreshAt - Date.now()) / 1000));
     const autoEl = document.querySelector('#footer .auto-badge');
     if (autoEl) autoEl.textContent = 'Next refresh in ' + sec + 's';
+    // Mirror countdown in the refresh button for quick visibility
+    const btn = document.getElementById('btnRefresh');
+    if (btn && !btn.classList.contains('busy')) btn.textContent = 'Refresh · ' + sec + 's';
   }, 1000);
 }
 
