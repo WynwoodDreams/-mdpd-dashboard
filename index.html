@@ -205,7 +205,7 @@
   /* ── LAYOUT ── */
   .main-grid {
     display: grid;
-    grid-template-columns: 1fr 420px;
+    grid-template-columns: 1fr 440px;
     height: calc(100vh - 88px);
   }
 
@@ -857,6 +857,111 @@
     color: var(--text-muted);
   }
 
+  /* ── FEED TYPE BREAKDOWN ── */
+  .feed-type-strip {
+    display: flex;
+    gap: 12px;
+    padding: 5px 20px 8px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    background: linear-gradient(135deg, rgba(59,143,255,0.04) 0%, rgba(59,255,240,0.02) 100%);
+    flex-wrap: wrap;
+  }
+
+  .type-chip {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 9.5px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    opacity: 0.75;
+    transition: opacity 0.15s;
+  }
+
+  .type-chip:hover { opacity: 1; }
+
+  .type-chip .chip-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .type-chip .chip-n {
+    font-size: 12px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    letter-spacing: 0;
+  }
+
+  .type-chip.tc-accident { color: var(--accent-red);    }
+  .type-chip.tc-injury   { color: var(--accent-orange); }
+  .type-chip.tc-hitrun   { color: var(--accent-yellow); }
+  .type-chip.tc-other    { color: var(--accent-blue);   }
+
+  /* ── FEED FILTER TABS ── */
+  .feed-filters {
+    display: flex;
+    border-bottom: 1px solid var(--border);
+    background: rgba(8,8,10,0.6);
+    flex-shrink: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .feed-filters::-webkit-scrollbar { display: none; }
+
+  .filter-tab {
+    flex: 1;
+    min-width: 0;
+    padding: 7px 6px 5px;
+    border: none;
+    background: none;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    font-size: 8px;
+    font-weight: 600;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    border-bottom: 2px solid transparent;
+    transition: color 0.15s, border-color 0.15s, background 0.15s;
+    white-space: nowrap;
+  }
+
+  .filter-tab:hover { color: var(--text-secondary); background: rgba(255,255,255,0.02); }
+
+  .filter-tab .tab-n {
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0;
+  }
+
+  .filter-tab.f-all.active   { color: var(--accent-cyan);   border-bottom-color: var(--accent-cyan);   background: rgba(59,255,240,0.05);  }
+  .filter-tab.f-acc.active   { color: var(--accent-red);    border-bottom-color: var(--accent-red);    background: rgba(255,59,79,0.05);   }
+  .filter-tab.f-inj.active   { color: var(--accent-orange); border-bottom-color: var(--accent-orange); background: rgba(255,140,56,0.05);  }
+  .filter-tab.f-hr.active    { color: var(--accent-yellow); border-bottom-color: var(--accent-yellow); background: rgba(255,210,63,0.05);  }
+  .filter-tab.f-other.active { color: var(--accent-blue);   border-bottom-color: var(--accent-blue);   background: rgba(59,143,255,0.05);  }
+
+  /* ── CARD INDEX ── */
+  .card-idx {
+    color: var(--text-muted);
+    opacity: 0.35;
+    font-size: 9px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.3px;
+    margin-right: 2px;
+  }
+
   /* ══════════════════════════════════════
      RESPONSIVE — TABLET (≤ 900px)
   ══════════════════════════════════════ */
@@ -907,6 +1012,9 @@
     .card      { padding: 12px 16px; }
     .card-addr { font-size: 13px; }
     .feed-top  { padding: 10px 16px; }
+    .feed-type-strip { padding: 4px 16px 6px; gap: 10px; }
+    .filter-tab { padding: 6px 4px 4px; }
+    .filter-tab .tab-n { font-size: 13px; }
 
     .main-grid { height: calc(100vh - 158px); }
 
@@ -992,8 +1100,25 @@
       <button class="btn-refresh" id="btnRefresh" onclick="loadData()">Refresh</button>
     </div>
 
-    <!-- 24-hour activity chart (collapsed by default) -->
-    <div class="history-bar" id="historyBar">
+    <!-- Type breakdown strip -->
+    <div class="feed-type-strip" id="typeStrip">
+      <div class="type-chip tc-accident"><div class="chip-dot" style="background:var(--accent-red)"></div><span class="chip-n" id="chipN-accident">—</span>Accidents</div>
+      <div class="type-chip tc-injury"><div class="chip-dot" style="background:var(--accent-orange)"></div><span class="chip-n" id="chipN-injury">—</span>Injuries</div>
+      <div class="type-chip tc-hitrun"><div class="chip-dot" style="background:var(--accent-yellow)"></div><span class="chip-n" id="chipN-hitrun">—</span>Hit &amp; Run</div>
+      <div class="type-chip tc-other"><div class="chip-dot" style="background:var(--accent-blue)"></div><span class="chip-n" id="chipN-other">—</span>Other</div>
+    </div>
+
+    <!-- Filter tabs -->
+    <div class="feed-filters" id="feedFilters">
+      <button class="filter-tab f-all active" data-filter="all" onclick="setFilter('all')"><span class="tab-n" id="tabN-all">—</span>All</button>
+      <button class="filter-tab f-acc" data-filter="accident" onclick="setFilter('accident')"><span class="tab-n" id="tabN-accident">0</span>Accident</button>
+      <button class="filter-tab f-inj" data-filter="injury" onclick="setFilter('injury')"><span class="tab-n" id="tabN-injury">0</span>Injuries</button>
+      <button class="filter-tab f-hr" data-filter="hitrun" onclick="setFilter('hitrun')"><span class="tab-n" id="tabN-hitrun">0</span>Hit &amp; Run</button>
+      <button class="filter-tab f-other" data-filter="other" onclick="setFilter('other')"><span class="tab-n" id="tabN-other">0</span>Other</button>
+    </div>
+
+    <!-- 24-hour activity chart (open by default) -->
+    <div class="history-bar open" id="historyBar">
       <div class="history-header" onclick="toggleHistory()">
         <span class="history-title">24H Activity</span>
         <span class="history-peak" id="historyPeak"></span>
@@ -1593,6 +1718,18 @@ function render(data, firstLoad) {
   const feedCountEl = document.getElementById('feedCount');
   if (feedCountEl) feedCountEl.textContent = '· ' + data.length + ' active';
 
+  // Per-type counts for breakdown strip + filter tabs
+  const typeCounts = { accident: 0, injury: 0, hitrun: 0, other: 0 };
+  data.forEach(d => { const t = classify(d.Signal); if (t in typeCounts) typeCounts[t]++; });
+  ['accident','injury','hitrun','other'].forEach(t => {
+    const chip = document.getElementById('chipN-' + t);
+    if (chip) chip.textContent = typeCounts[t];
+    const tab = document.getElementById('tabN-' + t);
+    if (tab) tab.textContent = typeCounts[t];
+  });
+  const tabAll = document.getElementById('tabN-all');
+  if (tabAll) tabAll.textContent = data.length;
+
   // Determine new keys (skip on first load to avoid false positives)
   const currentKeys = new Set(data.map(incidentKey));
   const newKeys     = firstLoad ? new Set() : new Set([...currentKeys].filter(k => !seenKeys.has(k)));
@@ -1624,6 +1761,7 @@ function render(data, firstLoad) {
     const mapsBit  = mapsUrl
       ? '<a class="maps-link" href="' + mapsUrl + '" target="_blank" rel="noopener" onclick="event.stopPropagation()">↗ Maps</a>'
       : '';
+    const idxBit   = '<span class="card-idx">#' + String(i + 1).padStart(2, '0') + '</span>';
 
     card.innerHTML =
       '<div class="card-row">' +
@@ -1632,7 +1770,7 @@ function render(data, firstLoad) {
       '</div>' +
       '<div class="card-addr">' + esc(item.Address || 'Unknown address') + '</div>' +
       landmarkBit +
-      '<div class="card-meta"><span>' + ago(item.CreateTime) + '</span>' + gridBit + mapsBit + '</div>';
+      '<div class="card-meta">' + idxBit + '<span>' + ago(item.CreateTime) + '</span>' + gridBit + mapsBit + '</div>';
 
     card.onclick = () => {
       list.querySelectorAll('.card').forEach(c => c.classList.remove('selected'));
@@ -1698,6 +1836,24 @@ function render(data, firstLoad) {
   // Fit all markers in view
   const pts = data.filter(d => d.Latitude && d.Longitude).map(d => [d.Latitude, d.Longitude]);
   if (pts.length > 1) map.fitBounds(pts, { padding: [40, 40], maxZoom: 13 });
+
+  // Reapply active filter after re-render
+  setFilter(activeFilter);
+}
+
+// ══════════════════════════════════════
+// FEED FILTER
+// ══════════════════════════════════════
+let activeFilter = 'all';
+
+function setFilter(type) {
+  activeFilter = type;
+  document.querySelectorAll('.filter-tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.filter === type);
+  });
+  document.querySelectorAll('#feedList .card').forEach(card => {
+    card.style.display = (type === 'all' || card.classList.contains('t-' + type)) ? '' : 'none';
+  });
 }
 
 // ══════════════════════════════════════
