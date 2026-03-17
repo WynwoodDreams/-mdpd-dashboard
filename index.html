@@ -758,22 +758,21 @@
   }
 
   .pop-sig {
-    font-size: 10px; font-weight: 700;
+    font-size: 11px; font-weight: 700;
     letter-spacing: 1.5px; text-transform: uppercase;
     margin-bottom: 3px;
   }
 
   .pop-addr {
     font-family: var(--font-display);
-    font-size: 13px; font-weight: 600;
+    font-size: 14px; font-weight: 600;
     margin-bottom: 3px;
   }
 
   .pop-landmark {
-    font-size: 10px;
+    font-size: 11px;
     color: var(--accent-yellow);
     margin-bottom: 4px;
-    opacity: 0.85;
   }
 
   .pop-time { color: var(--text-secondary); font-size: 11px; }
@@ -1503,7 +1502,7 @@ async function initFloodLayer() {
       .bindPopup(
         '<div class="pop-sig" style="color:#3b8fff">FLOOD-PRONE AREA</div>' +
         '<div class="pop-addr">' + esc(spot.n) + '</div>' +
-        '<div class="pop-time" style="margin-top:4px;opacity:0.65;font-size:9px">HISTORICALLY FLOOD-PRONE ZONE · Miami-Dade</div>',
+        '<div class="pop-time" style="margin-top:4px">HISTORICALLY FLOOD-PRONE ZONE · Miami-Dade</div>',
         { closeButton: false, maxWidth: 220 }
       )
       .addTo(overlayLayers.flood);
