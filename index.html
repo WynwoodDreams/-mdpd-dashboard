@@ -21,7 +21,7 @@
     --border-accent: #2a2a32;
     --text-primary: #e8e8ec;
     --text-secondary: #8888a0;
-    --text-muted: #55556a;
+    --text-muted: #9999b0;
     --accent-red: #ff3b4f;
     --accent-orange: #ff8c38;
     --accent-yellow: #ffd23f;
@@ -312,7 +312,7 @@
   .ctrl-header:hover { background: rgba(255,255,255,0.03); }
 
   .ctrl-title {
-    font-size: 9px;
+    font-size: 10px;
     letter-spacing: 2px;
     text-transform: uppercase;
     color: var(--text-muted);
@@ -320,7 +320,7 @@
   }
 
   .ctrl-toggle {
-    font-size: 9px;
+    font-size: 10px;
     color: var(--text-muted);
     transition: transform 0.2s;
     line-height: 1;
@@ -521,7 +521,7 @@
   .history-header:hover { background: rgba(255,255,255,0.02); }
 
   .history-title {
-    font-size: 9px;
+    font-size: 10px;
     letter-spacing: 2px;
     text-transform: uppercase;
     color: var(--text-muted);
@@ -529,9 +529,9 @@
   }
 
   .history-peak {
-    font-size: 9px;
+    font-size: 10px;
     color: var(--text-muted);
-    opacity: 0.6;
+    opacity: 0.85;
     margin-left: auto;
     margin-right: 10px;
   }
@@ -809,7 +809,7 @@
   .feed-footer {
     padding: 8px 20px;
     border-top: 1px solid var(--border);
-    font-size: 9px;
+    font-size: 10px;
     color: var(--text-muted);
     letter-spacing: 1px;
     text-transform: uppercase;
@@ -873,11 +873,11 @@
     display: flex;
     align-items: center;
     gap: 5px;
-    font-size: 9.5px;
+    font-size: 11px;
     font-weight: 600;
     letter-spacing: 0.5px;
     text-transform: uppercase;
-    opacity: 0.75;
+    opacity: 0.9;
     transition: opacity 0.15s;
   }
 
@@ -922,7 +922,7 @@
     background: none;
     color: var(--text-muted);
     font-family: var(--font-mono);
-    font-size: 8px;
+    font-size: 10px;
     font-weight: 600;
     letter-spacing: 0.8px;
     text-transform: uppercase;
@@ -1695,8 +1695,8 @@ function drawHistoryChart() {
 
     // Hour label — every other slot + always current
     if (i % 2 === 0 || b.isCurrent) {
-      ctx.fillStyle = b.isCurrent ? 'rgba(59,255,240,0.75)' : 'rgba(85,85,106,0.6)';
-      ctx.font = '500 7px JetBrains Mono, monospace';
+      ctx.fillStyle = b.isCurrent ? 'rgba(59,255,240,0.85)' : 'rgba(153,153,176,0.85)';
+      ctx.font = '600 8px JetBrains Mono, monospace';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'alphabetic';
       ctx.fillText(b.label, x + barW / 2, h - 2);
