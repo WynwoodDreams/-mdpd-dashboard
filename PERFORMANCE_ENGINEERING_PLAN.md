@@ -143,32 +143,6 @@ function render(data, firstLoad) {
 | **24h history chart** | localStorage (current) | 12 hours | Already correct. |
 | **Incident counts by hour** | localStorage | 24 hours | For the history chart; already implemented. |
 
-### Future: If You Add Arrests, Bookings, Charges, Demographics
-
-| Data Type | Recommended Cache | Duration |
-|-----------|------------------|----------|
-| Historical arrests/bookings | CDN / static JSON | 24 hours (rebuild nightly) |
-| Charge category rollups | Pre-computed JSON | 24 hours |
-| Demographic breakdowns | Pre-computed JSON | 24 hours |
-| District/grid summaries | Pre-computed JSON | 6–24 hours |
-| Trend data (30/60/90 day) | Pre-computed JSON | 24 hours |
-| "Today" counts | Vercel ISR | 5 minutes |
-| Live feed (current feature) | Vercel ISR | 30 seconds (current) |
-
-### Cache Key Strategy for Query Combinations
-
-When you expand to support filters, use deterministic cache keys:
-
-```
-/api/summary?range=30d&district=all&type=all  →  cache key: "summary:30d:all:all"
-/api/summary?range=7d&district=north&type=dui  →  cache key: "summary:7d:north:dui"
-```
-
-Pre-warm the most common combinations:
-- All districts + all types + 7d/30d/90d
-- Top 5 districts + all types + 30d
-- All districts + top 5 charge types + 30d
-
 ---
 
 ## 4. Request-Flow Strategy
@@ -248,13 +222,11 @@ Every 60 seconds:
 
 ### 5a. Debounce & Throttle
 
-Your current app doesn't have search or complex filters that hit APIs — filters are pure CSS show/hide, which is already fast. However, for future expansion:
+Your current app doesn't have search or complex filters that hit APIs — filters are pure CSS show/hide, which is already fast. No debounce needed for type filter tabs since they don't trigger API calls.
 
 | Interaction | Technique | Delay |
 |------------|-----------|-------|
-| Search input (future) | Debounce | 300ms |
-| Date range filter (future) | Debounce | 500ms |
-| Map pan/zoom (for viewport-based loading) | Throttle | 200ms |
+| Map pan/zoom (if you add viewport-based loading) | Throttle | 200ms |
 | Rapid filter tab clicks | Already instant (CSS) | N/A — no API call |
 
 ### 5b. Staged Loading
@@ -382,34 +354,9 @@ async function fetchWithETag(url) {
 }
 ```
 
-### 6b. Future Endpoint Structure
+### 6b. Response Shaping — Return Only What's Needed
 
-When you expand beyond live traffic to arrests, bookings, charges, etc., structure endpoints like this:
-
-```
-/api/traffic                          ← current (live incidents, 30s cache)
-
-/api/summary?range=7d                 ← pre-aggregated KPI data (5min cache)
-/api/trends?range=30d&bucket=day      ← time-series for charts (1hr cache)
-/api/charges?range=30d&top=20         ← charge category rollups (1hr cache)
-/api/districts?range=30d              ← per-district summaries (1hr cache)
-/api/demographics?range=30d           ← age/demographic breakdowns (1hr cache)
-
-/api/incidents?page=1&limit=50        ← paginated raw records (on drill-down only)
-/api/map/clusters?zoom=12&bounds=...  ← viewport-aware map data (no cache, fast)
-```
-
-### 6c. Response Shaping — Return Only What's Needed
-
-For future aggregate endpoints, don't return full records:
-
-```javascript
-// BAD: Return 10,000 full records for a chart that only needs daily counts
-{ records: [{ CreateTime, Signal, Address, Location, Grid, Lat, Lng, ... }, ...] }
-
-// GOOD: Return pre-aggregated data
-{ dailyCounts: [{ date: "2026-03-15", total: 47, injury: 8, hitrun: 3 }, ...] }
-```
+Your current single endpoint returns the full incident array, which is fine for ~20-80 live incidents. If the payload ever grows, consider trimming unused fields at the proxy level before sending to the client.
 
 ---
 
@@ -419,44 +366,7 @@ For future aggregate endpoints, don't return full records:
 
 Your current setup uses MarkerCluster with `maxClusterRadius: 50`, which handles grouping well. For ~20-80 live traffic incidents, this is fine. No immediate map performance problem.
 
-### 7b. When You Scale to Historical Data (Thousands of Points)
-
-| Technique | When to Use | How |
-|-----------|-------------|-----|
-| **Viewport-based loading** | 1,000+ markers | Only fetch/render markers within `map.getBounds()`. Re-fetch on `moveend` (throttled 200ms). |
-| **Server-side clustering** | 5,000+ markers | Pre-cluster on the backend. Return cluster centroids with counts at low zoom, individual points at high zoom. |
-| **Tile-based heatmaps** | 10,000+ points | Generate heatmap tiles server-side. Use Leaflet.heat or vector tiles. |
-| **Grid aggregation** | Any density | Divide Miami-Dade into a grid (e.g., Grid codes you already have). Return counts per grid cell. |
-
-### 7c. Viewport-Based Loading (Implementation Sketch)
-
-```javascript
-// Throttled map movement handler
-let moveTimeout;
-map.on('moveend', () => {
-  clearTimeout(moveTimeout);
-  moveTimeout = setTimeout(() => {
-    const bounds = map.getBounds();
-    const zoom = map.getZoom();
-    fetchMapData(bounds, zoom);
-  }, 200);
-});
-
-async function fetchMapData(bounds, zoom) {
-  const params = new URLSearchParams({
-    north: bounds.getNorth(),
-    south: bounds.getSouth(),
-    east: bounds.getEast(),
-    west: bounds.getWest(),
-    zoom: zoom
-  });
-
-  const data = await fetch(`/api/map/clusters?${params}`);
-  // Update only changed markers
-}
-```
-
-### 7d. Prevent Map Thrash on Polling
+### 7b. Prevent Map Thrash on Polling
 
 Current code clears all markers and re-adds them every 60s. This causes a visible flicker. Fix:
 
@@ -495,20 +405,6 @@ function updateMarkers(newData) {
 | **Landmarks, highways, flood hotspots** | Never (static) | Hardcoded. Already correct. |
 | **24h history chart** | On each data poll | localStorage accumulation. Already correct. |
 | **Street View thumbnails** | On-demand only | Loaded when popup opens. Already correct. |
-
-### Future Data (Arrests, Bookings, Charges)
-
-| Data Type | Freshness Need | Refresh Strategy |
-|-----------|---------------|-----------------|
-| Today's incidents/arrests | Near-real-time | 5-minute ISR cache |
-| This week's totals | Hourly is fine | 1-hour ISR cache |
-| 30/60/90-day trends | Daily is fine | Pre-compute nightly, serve from static JSON or CDN |
-| Historical charge breakdowns | Daily is fine | Pre-compute nightly |
-| Demographic rollups | Daily is fine | Pre-compute nightly |
-| District comparisons | Daily is fine | Pre-compute nightly |
-| Year-over-year trends | Weekly is fine | Pre-compute weekly |
-
-**Key insight for police/public-safety data:** Most historical data is immutable. An arrest from last month won't change. Only "today" and "this week" need frequent refreshes. Everything else can be pre-computed and served as static files.
 
 ---
 
@@ -551,29 +447,9 @@ async function loadData() {
 }
 ```
 
-### 9c. Vercel Proxy Rate Limiting (Future)
+### 9c. Client-Side Abuse Prevention
 
-If you add more endpoints for expanded data:
-
-```javascript
-// Simple in-memory rate limiter for serverless (per-instance)
-const rateMap = new Map();
-
-function rateLimit(ip, limit = 60, windowMs = 60000) {
-  const now = Date.now();
-  const record = rateMap.get(ip) || { count: 0, resetAt: now + windowMs };
-
-  if (now > record.resetAt) {
-    record.count = 0;
-    record.resetAt = now + windowMs;
-  }
-
-  record.count++;
-  rateMap.set(ip, record);
-
-  return record.count > limit; // true = blocked
-}
-```
+The manual refresh cooldown (9a) and fetch dedup guard (Quick Win #2) together prevent most client-side abuse. No server-side rate limiter needed for a single-endpoint proxy.
 
 ---
 
@@ -599,15 +475,12 @@ function rateLimit(ip, limit = 60, windowMs = 60000) {
 | 9 | Manual refresh cooldown (10s minimum) | Prevents user-driven API hammering | 10 min |
 | 10 | Exponential backoff on fetch failures | Graceful degradation when MDPD API is down | 15 min |
 
-### LOW Priority (Do When Expanding)
+### LOW Priority (Nice-to-Have)
 
 | # | Change | Impact | Effort |
 |---|--------|--------|--------|
-| 11 | Viewport-based map loading for historical data | Required only when marker count exceeds ~500 | 2-4 hours |
-| 12 | Pre-aggregated API endpoints for dashboards | Required when adding arrests/charges/demographics views | 1-2 days |
-| 13 | Server-side clustering for dense map data | Required when plotting thousands of historical points | 1 day |
-| 14 | Nightly pre-computation pipeline for trend data | Required for 30/60/90-day dashboards | 1 day |
-| 15 | Client-side service worker for offline fallback | Nice-to-have for resilience | 2-4 hours |
+| 11 | Client-side service worker for offline fallback | Serves cached page when network fails | 2-4 hours |
+| 12 | Preload/prefetch hints for CDN assets (Leaflet, fonts) | Slightly faster first paint | 15 min |
 
 ---
 
@@ -619,70 +492,14 @@ function rateLimit(ip, limit = 60, windowMs = 60000) {
 | **GraphQL** | Your data model is one flat array. REST is simpler. |
 | **WebSocket / SSE real-time push** | 60-second polling with ISR cache is appropriate for traffic incident data. Push adds complexity for marginal gain. |
 | **Service Worker / PWA** | Not needed until you have offline requirements. |
-| **Database (Postgres, Supabase, etc.)** | Not needed until you store historical data or user accounts. |
+| **Database (Postgres, Supabase, etc.)** | You're proxying a live feed, not storing data. No DB needed. |
 | **React / Vue / Svelte migration** | The vanilla JS approach is fast and works. Don't rewrite for rewrite's sake. |
 | **Complex CDN / edge caching rules** | Vercel ISR already handles this. Don't add Cloudflare or another CDN layer yet. |
-| **User authentication / sessions** | Only needed when you add personalized dashboards or saved filters. |
+| **Multiple API endpoints** | You have one data source. One proxy endpoint is correct. Don't over-engineer. |
 
 ---
 
-## 12. Shared Query Pattern for Dashboard Widgets
-
-When you expand to multi-widget dashboards, use a single fetch to feed multiple components:
-
-```javascript
-// ── Shared data layer ──────────────────────────
-const DataStore = {
-  _cache: {},
-  _pending: {},
-
-  async fetch(endpoint, ttlMs = 60000) {
-    const now = Date.now();
-
-    // Return cached if still fresh
-    if (this._cache[endpoint] && now - this._cache[endpoint].ts < ttlMs) {
-      return this._cache[endpoint].data;
-    }
-
-    // Deduplicate in-flight requests
-    if (this._pending[endpoint]) {
-      return this._pending[endpoint];
-    }
-
-    const promise = fetch(endpoint)
-      .then(r => r.json())
-      .then(data => {
-        this._cache[endpoint] = { data, ts: Date.now() };
-        delete this._pending[endpoint];
-        return data;
-      })
-      .catch(err => {
-        delete this._pending[endpoint];
-        // Return stale cache if available
-        if (this._cache[endpoint]) return this._cache[endpoint].data;
-        throw err;
-      });
-
-    this._pending[endpoint] = promise;
-    return promise;
-  }
-};
-
-// ── Multiple widgets share one fetch ────────────
-async function renderDashboard() {
-  // One fetch, used by 4 widgets
-  const incidents = await DataStore.fetch('/api/traffic', 60000);
-
-  renderStatsCards(incidents);   // KPI summary cards
-  renderFeedList(incidents);     // Scrollable feed
-  renderMapMarkers(incidents);   // Leaflet markers
-  renderTypeChart(incidents);    // Type breakdown chart
-}
-```
-
----
-
-## 13. Rollout Plan
+## 12. Rollout Plan
 
 ### Phase 1 — Quick Wins (Week 1)
 **Goal: Eliminate wasted work**
@@ -717,18 +534,9 @@ async function renderDashboard() {
 
 **Expected result:** ~50% bandwidth reduction on unchanged polls. Better observability.
 
-### Phase 4 — Expansion Foundation (When Ready)
-**Goal: Prepare for arrests, bookings, charges, demographics**
-
-- [ ] Create `DataStore` shared fetch layer with TTL cache + dedup
-- [ ] Design aggregate API endpoints (`/api/summary`, `/api/trends`, etc.)
-- [ ] Build nightly pre-computation for historical rollups
-- [ ] Add viewport-based map loading for dense historical data
-- [ ] Implement server-side clustering for map views with 500+ points
-
 ---
 
-## 14. Example: Before vs After Request Timeline
+## 13. Example: Before vs After Request Timeline
 
 ### Before — User opens dashboard, browses for 5 minutes
 
