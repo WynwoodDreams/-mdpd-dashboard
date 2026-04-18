@@ -36,12 +36,14 @@
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
-  body {
+  html, body {
     background: var(--bg-primary);
     color: var(--text-primary);
     font-family: var(--font-mono);
     min-height: 100vh;
+    min-height: 100dvh;
     overflow-x: hidden;
+    -webkit-text-size-adjust: 100%;
   }
 
   body::after {
@@ -207,6 +209,7 @@
     display: grid;
     grid-template-columns: 1fr 440px;
     height: calc(100vh - 88px);
+    height: calc(100dvh - 88px);
   }
 
   /* ── MAP ── */
@@ -969,6 +972,8 @@
     .main-grid {
       grid-template-columns: 1fr;
       height: calc(100vh - 136px);
+      height: calc(100dvh - 136px);
+      min-height: 360px;
     }
 
     .mobile-tabs { display: flex; }
@@ -1016,7 +1021,11 @@
     .filter-tab { padding: 6px 4px 4px; }
     .filter-tab .tab-n { font-size: 13px; }
 
-    .main-grid { height: calc(100vh - 158px); }
+    .main-grid {
+      height: calc(100vh - 158px);
+      height: calc(100dvh - 158px);
+      min-height: 340px;
+    }
 
     .legend-row { font-size: 9px; }
   }
@@ -1148,6 +1157,17 @@ const GOOGLE_API_KEY = ''; // e.g. 'AIzaSy...'
 
 const STALE_THRESHOLD_MS = 3 * 60 * 60 * 1000; // 3 hours
 
+// Older mobile browsers (iOS < 17.4) lack AbortSignal.timeout — provide a fallback
+// so fetches fail fast without throwing synchronously and breaking init.
+function abortTimeout(ms) {
+  if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') {
+    try { return AbortSignal.timeout(ms); } catch { /* fall through */ }
+  }
+  const c = new AbortController();
+  setTimeout(() => c.abort(), ms);
+  return c.signal;
+}
+
 // ══════════════════════════════════════
 // EMBEDDED FALLBACK — last server fetch
 // ══════════════════════════════════════
@@ -1167,13 +1187,14 @@ function switchTab(tab) {
   const feedPanel = document.getElementById('feedPanel');
   const tabMap    = document.getElementById('tabMap');
   const tabFeed   = document.getElementById('tabFeed');
+  if (!mapPanel || !feedPanel || !tabMap || !tabFeed) return;
 
   if (tab === 'map') {
     mapPanel.classList.add('tab-active');
     feedPanel.classList.remove('tab-active');
     tabMap.classList.add('active');
     tabFeed.classList.remove('active');
-    setTimeout(() => map.invalidateSize(), 50);
+    setTimeout(() => { try { map.invalidateSize(); } catch {} }, 50);
   } else {
     feedPanel.classList.add('tab-active');
     mapPanel.classList.remove('tab-active');
@@ -1184,47 +1205,75 @@ function switchTab(tab) {
 
 // ══════════════════════════════════════
 // MAP
+// If Leaflet or MarkerCluster fail to load (flaky mobile networks, CDN block,
+// strict content blockers), we must NOT let that take down the feed — so guard
+// each step and fall back to stub objects that make render() a no-op on map.
 // ══════════════════════════════════════
-const map = L.map('map', {
-  center: [25.78, -80.22],
-  zoom: 11,
-  zoomControl: false,
-  attributionControl: false
-});
-L.control.zoom({ position: 'topright' }).addTo(map);
+let map          = null;
+let layerGroup   = { clearLayers() {}, addLayer() {}, zoomToShowLayer(_, cb){ if (cb) cb(); } };
+let markerRefs   = [];
+let isLive       = false;
+let seenKeys     = new Set();
+const leafletOk  = typeof L !== 'undefined' && typeof L.map === 'function';
 
-const tileSources = [
-  'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-  'https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png',
-  'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
-];
+if (leafletOk) {
+  try {
+    map = L.map('map', {
+      center: [25.78, -80.22],
+      zoom: 11,
+      zoomControl: false,
+      attributionControl: false
+    });
+    L.control.zoom({ position: 'topright' }).addTo(map);
 
-let tileIdx = 0;
-function loadTiles(idx) {
-  const layer = L.tileLayer(tileSources[idx], { maxZoom: 19, errorTileUrl: '' }).addTo(map);
-  layer.on('tileerror', () => {
-    if (tileIdx < tileSources.length - 1) {
-      tileIdx++;
-      map.removeLayer(layer);
-      loadTiles(tileIdx);
+    const tileSources = [
+      'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+      'https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png',
+      'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
+    ];
+
+    let tileIdx = 0;
+    const loadTiles = (idx) => {
+      const layer = L.tileLayer(tileSources[idx], { maxZoom: 19, errorTileUrl: '' }).addTo(map);
+      layer.on('tileerror', () => {
+        if (tileIdx < tileSources.length - 1) {
+          tileIdx++;
+          map.removeLayer(layer);
+          loadTiles(tileIdx);
+        }
+      });
+      if (idx === tileSources.length - 1) {
+        const pane = document.querySelector('.leaflet-tile-pane');
+        if (pane) pane.style.filter =
+          'invert(1) hue-rotate(180deg) brightness(0.7) contrast(1.2) saturate(0.3)';
+      }
+    };
+    loadTiles(0);
+
+    if (typeof L.markerClusterGroup === 'function') {
+      layerGroup = L.markerClusterGroup({
+        showCoverageOnHover: false,
+        maxClusterRadius: 50,
+        spiderfyOnMaxZoom: true,
+        zoomToBoundsOnClick: true
+      }).addTo(map);
+    } else {
+      layerGroup = L.layerGroup().addTo(map);
     }
-  });
-  if (idx === tileSources.length - 1) {
-    document.querySelector('.leaflet-tile-pane').style.filter =
-      'invert(1) hue-rotate(180deg) brightness(0.7) contrast(1.2) saturate(0.3)';
+  } catch (e) {
+    console.error('Map init failed:', e);
+    map = null;
   }
 }
-loadTiles(0);
 
-let layerGroup = L.markerClusterGroup({
-  showCoverageOnHover: false,
-  maxClusterRadius: 50,
-  spiderfyOnMaxZoom: true,
-  zoomToBoundsOnClick: true
-}).addTo(map);
-let markerRefs = [];
-let isLive = false;
-let seenKeys = new Set();
+if (!map) {
+  // Hide the map panel and pin the feed if Leaflet is unavailable, so the
+  // page never presents a blank map area to mobile users.
+  const mp = document.getElementById('mapPanel');
+  const mt = document.getElementById('tabMap');
+  if (mp) mp.style.display = 'none';
+  if (mt) mt.style.display = 'none';
+}
 
 // ══════════════════════════════════════
 // HELPERS
@@ -1267,8 +1316,14 @@ function esc(s) {
 // ══════════════════════════════════════
 // OVERLAY LAYERS — Landmarks · Highways · Flood/Alerts
 // ══════════════════════════════════════
-const overlayLayers = {
-  landmarks: L.markerClusterGroup({
+const mkCluster = (opts) => (typeof L !== 'undefined' && typeof L.markerClusterGroup === 'function')
+  ? L.markerClusterGroup(opts)
+  : (typeof L !== 'undefined' && typeof L.layerGroup === 'function'
+      ? L.layerGroup()
+      : { addTo(){return this;}, addLayer(){}, clearLayers(){} });
+
+const overlayLayers = leafletOk ? {
+  landmarks: mkCluster({
     showCoverageOnHover: false,
     maxClusterRadius: 45,
     spiderfyOnMaxZoom: true,
@@ -1282,7 +1337,7 @@ const overlayLayers = {
     }
   }),
   highways: L.layerGroup(),
-  flood: L.markerClusterGroup({
+  flood: mkCluster({
     showCoverageOnHover: false,
     maxClusterRadius: 40,
     spiderfyOnMaxZoom: true,
@@ -1295,7 +1350,7 @@ const overlayLayers = {
       });
     }
   })
-};
+} : { landmarks: null, highways: null, flood: null };
 
 // ─── Landmark Data ────────────────────
 const LANDMARKS = [
@@ -1511,7 +1566,7 @@ async function initFloodLayer() {
   // Live NWS weather alerts for Miami-Dade (zones FLZ068 + FLZ070)
   try {
     const r = await fetch('https://api.weather.gov/alerts/active?zone=FLZ068,FLZ070', {
-      signal: AbortSignal.timeout(6000),
+      signal: abortTimeout(6000),
       headers: { 'Accept': 'application/geo+json' }
     });
     if (!r.ok) return;
@@ -1564,7 +1619,7 @@ async function initFloodLayer() {
 // ─── Toggle overlay layers ────────────
 function toggleMapLayer(name, visible) {
   const layer = overlayLayers[name];
-  if (!layer) return;
+  if (!layer || !map) return;
   if (visible) map.addLayer(layer);
   else         map.removeLayer(layer);
 }
@@ -1576,10 +1631,11 @@ function toggleMapControls() {
 
 // ─── Init all overlays ────────────────
 function initOverlays() {
+  if (!map) return;
   initLandmarks();
   initHighways();
   initFloodLayer(); // async — fires and forgets
-  Object.values(overlayLayers).forEach(l => map.addLayer(l));
+  Object.values(overlayLayers).forEach(l => { if (l) map.addLayer(l); });
 }
 
 // ══════════════════════════════════════
@@ -1775,13 +1831,19 @@ function render(data, firstLoad) {
     card.onclick = () => {
       list.querySelectorAll('.card').forEach(c => c.classList.remove('selected'));
       card.classList.add('selected');
-      if (item.Latitude && item.Longitude) {
+      if (map && item.Latitude && item.Longitude) {
         const mk    = markerRefs[i];
+        if (!mk) return;
+        const fly = () => {
+          map.flyTo([item.Latitude, item.Longitude], 15, { duration: 0.7 });
+          mk.openPopup();
+        };
         const doFly = () => {
-          layerGroup.zoomToShowLayer(mk, () => {
-            map.flyTo([item.Latitude, item.Longitude], 15, { duration: 0.7 });
-            mk.openPopup();
-          });
+          if (typeof layerGroup.zoomToShowLayer === 'function') {
+            layerGroup.zoomToShowLayer(mk, fly);
+          } else {
+            fly();
+          }
         };
         if (window.innerWidth <= 900) { switchTab('map'); setTimeout(doFly, 100); }
         else doFly();
@@ -1790,7 +1852,7 @@ function render(data, firstLoad) {
     list.appendChild(card);
 
     // ── Map marker ────────────────────────
-    if (item.Latitude && item.Longitude) {
+    if (map && item.Latitude && item.Longitude) {
       const icon = L.divIcon({
         className: '',
         html: '<div class="pulse-marker m-' + t + '"></div>',
@@ -1834,8 +1896,10 @@ function render(data, firstLoad) {
   });
 
   // Fit all markers in view
-  const pts = data.filter(d => d.Latitude && d.Longitude).map(d => [d.Latitude, d.Longitude]);
-  if (pts.length > 1) map.fitBounds(pts, { padding: [40, 40], maxZoom: 13 });
+  if (map) {
+    const pts = data.filter(d => d.Latitude && d.Longitude).map(d => [d.Latitude, d.Longitude]);
+    if (pts.length > 1) map.fitBounds(pts, { padding: [40, 40], maxZoom: 13 });
+  }
 
   // Reapply active filter after re-render
   setFilter(activeFilter);
@@ -1881,21 +1945,20 @@ function startCountdown() {
 
 async function loadData() {
   const btn = document.getElementById('btnRefresh');
-  btn.classList.add('busy');
-  btn.textContent = 'Loading…';
-  layerGroup.clearLayers();
+  if (btn) { btn.classList.add('busy'); btn.textContent = 'Loading…'; }
+  try { layerGroup.clearLayers(); } catch {}
 
   let data   = null;
   let source = 'cached';
 
   try {
-    const r = await fetch('/api/traffic', { signal: AbortSignal.timeout(5000) });
+    const r = await fetch('/api/traffic', { signal: abortTimeout(5000) });
     if (r.ok) { data = await r.json(); if (Array.isArray(data) && data.length) source = 'live'; else data = null; }
   } catch {}
 
   if (!data) {
     try {
-      const r = await fetch('https://traffic.mdpd.com/api/traffic', { signal: AbortSignal.timeout(5000) });
+      const r = await fetch('https://traffic.mdpd.com/api/traffic', { signal: abortTimeout(5000) });
       if (r.ok) { data = await r.json(); if (Array.isArray(data) && data.length) source = 'live'; else data = null; }
     } catch {}
   }
@@ -1905,28 +1968,44 @@ async function loadData() {
   isLive = source === 'live';
 
   const badge = document.getElementById('sourceMode');
-  badge.className   = 'source-mode ' + source;
-  badge.textContent = source === 'live' ? 'LIVE' : 'CACHED';
+  if (badge) {
+    badge.className   = 'source-mode ' + source;
+    badge.textContent = source === 'live' ? 'LIVE' : 'CACHED';
+  }
 
-  render(data, isFirstLoad);
+  // Never let a render/chart exception leave the feed panel blank
+  try {
+    render(data, isFirstLoad);
+  } catch (err) {
+    const list = document.getElementById('feedList');
+    if (list) {
+      list.innerHTML =
+        '<div class="loader-wrap"><div class="loader-text" style="color:var(--accent-red)">' +
+        'Feed render error — showing minimal view</div></div>';
+    }
+    console.error('render failed:', err);
+  }
   isFirstLoad = false;
 
-  // Persist incident count for the history chart
-  saveHistory(data.length);
-  if (document.getElementById('historyBar').classList.contains('open')) drawHistoryChart();
+  try {
+    saveHistory(data.length);
+    const hb = document.getElementById('historyBar');
+    if (hb && hb.classList.contains('open')) drawHistoryChart();
+  } catch {}
 
   const ts = new Date().toLocaleTimeString('en-US', {
     hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true
   });
   const footer = document.getElementById('footer');
-  footer.innerHTML =
-    (source === 'live' ? 'LIVE UPDATED ' : 'CACHED · CHECKED ') + ts +
-    '<span class="auto-badge">Next refresh in 60s</span>';
+  if (footer) {
+    footer.innerHTML =
+      (source === 'live' ? 'LIVE UPDATED ' : 'CACHED · CHECKED ') + ts +
+      '<span class="auto-badge">Next refresh in 60s</span>';
+  }
 
   startCountdown();
 
-  btn.classList.remove('busy');
-  btn.textContent = 'Refresh';
+  if (btn) { btn.classList.remove('busy'); btn.textContent = 'Refresh'; }
 }
 
 // ══════════════════════════════════════
@@ -1943,9 +2022,33 @@ tick();
 // ══════════════════════════════════════
 // INIT
 // ══════════════════════════════════════
-loadData();
-setInterval(loadData, 60000);
-initOverlays();
+loadData().catch(err => {
+  console.error('loadData failed:', err);
+  // Last-resort fallback so the feed panel is never left blank
+  try {
+    const list = document.getElementById('feedList');
+    if (list && list.querySelector('.loader-wrap')) {
+      render(FALLBACK_DATA, true);
+    }
+  } catch {}
+});
+setInterval(() => { loadData().catch(() => {}); }, 60000);
+try { initOverlays(); } catch (e) { console.error('initOverlays failed:', e); }
+
+// Mobile viewport housekeeping: when the URL bar shows/hides or the device
+// rotates, the Leaflet map must re-measure, otherwise tiles render blank.
+let resizeTimer = null;
+function handleViewportChange() {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => {
+    try { if (map) map.invalidateSize(); } catch {}
+  }, 150);
+}
+window.addEventListener('resize', handleViewportChange);
+window.addEventListener('orientationchange', handleViewportChange);
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) handleViewportChange();
+});
 </script>
 </body>
 </html>
