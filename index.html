@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>MDPD // LIVE TRAFFIC FEED</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin />
+<link rel="preconnect" href="https://traffic.mdpd.com" />
+<link rel="dns-prefetch" href="https://a.basemaps.cartocdn.com" />
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Inter+Tight:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.css" />
@@ -1952,13 +1956,13 @@ async function loadData() {
   let source = 'cached';
 
   try {
-    const r = await fetch('/api/traffic', { signal: abortTimeout(5000) });
+    const r = await fetch('/api/traffic', { signal: abortTimeout(2000) });
     if (r.ok) { data = await r.json(); if (Array.isArray(data) && data.length) source = 'live'; else data = null; }
   } catch {}
 
   if (!data) {
     try {
-      const r = await fetch('https://traffic.mdpd.com/api/traffic', { signal: abortTimeout(5000) });
+      const r = await fetch('https://traffic.mdpd.com/api/traffic', { signal: abortTimeout(2000) });
       if (r.ok) { data = await r.json(); if (Array.isArray(data) && data.length) source = 'live'; else data = null; }
     } catch {}
   }
@@ -2021,19 +2025,21 @@ tick();
 
 // ══════════════════════════════════════
 // INIT
+// Paint FALLBACK_DATA synchronously so the intro is instant (cards visible
+// in the first frame). Live data replaces it as soon as the fetch resolves;
+// isFirstLoad stays true so the live swap skips "New" badges.
 // ══════════════════════════════════════
-loadData().catch(err => {
-  console.error('loadData failed:', err);
-  // Last-resort fallback so the feed panel is never left blank
-  try {
-    const list = document.getElementById('feedList');
-    if (list && list.querySelector('.loader-wrap')) {
-      render(FALLBACK_DATA, true);
-    }
-  } catch {}
-});
+try { render(FALLBACK_DATA, true); } catch (e) { console.error('initial render failed:', e); }
+
+loadData().catch(err => { console.error('loadData failed:', err); });
 setInterval(() => { loadData().catch(() => {}); }, 60000);
-try { initOverlays(); } catch (e) { console.error('initOverlays failed:', e); }
+
+// Defer non-critical map overlays to idle time so they don't block
+// first paint or the initial live-data fetch.
+const deferInit = (fn) => window.requestIdleCallback
+  ? window.requestIdleCallback(fn, { timeout: 1500 })
+  : setTimeout(fn, 300);
+deferInit(() => { try { initOverlays(); } catch (e) { console.error('initOverlays failed:', e); } });
 
 // Mobile viewport housekeeping: when the URL bar shows/hides or the device
 // rotates, the Leaflet map must re-measure, otherwise tiles render blank.
