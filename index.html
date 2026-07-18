@@ -581,8 +581,10 @@
     cursor: pointer;
     transition: opacity 0.2s, filter 0.2s;
     position: relative;
-    animation: slideIn 0.35s ease-out both;
   }
+
+  /* Entrance motion is reserved for genuinely new cards */
+  .card.anim { animation: slideIn 0.35s ease-out both; }
 
   @keyframes slideIn {
     from { opacity: 0; transform: translateX(10px); }
@@ -969,6 +971,44 @@
     margin-right: 2px;
   }
 
+  /* ── DISTANCE (Near Me) ── */
+  .card-dist { color: var(--accent-cyan); opacity: 0.75; }
+  .card-dist:empty { display: none; }
+
+  /* ── MOBILE FEED TAB — NEW COUNT ── */
+  .tab-dot {
+    display: none;
+    margin-left: 6px;
+    padding: 1px 6px;
+    border-radius: 8px;
+    font-size: 9px;
+    font-weight: 800;
+    background: rgba(59,255,240,0.15);
+    color: var(--accent-cyan);
+    border: 1px solid rgba(59,255,240,0.35);
+    vertical-align: middle;
+  }
+
+  .tab-dot.show { display: inline-block; }
+
+  /* ── "YOU ARE HERE" MARKER ── */
+  .lm-you {
+    background: rgba(59,255,240,0.18);
+    border-color: var(--accent-cyan);
+    color: var(--accent-cyan);
+  }
+
+  /* ── REDUCED MOTION ── */
+  @media (prefers-reduced-motion: reduce) {
+    .header-tag .dot,
+    .pulse-marker::before,
+    .badge-new,
+    .badge-new::before,
+    .card.anim,
+    .lm-marker,
+    .auto-badge::before { animation: none !important; }
+  }
+
   /* ══════════════════════════════════════
      RESPONSIVE — TABLET (≤ 900px)
   ══════════════════════════════════════ */
@@ -1045,7 +1085,7 @@
     <div class="header-title">MDPD TRAFFIC INCIDENTS</div>
     <div class="header-sub">
       traffic.mdpd.com
-      <span class="source-mode cached" id="sourceMode">CACHED</span>
+      <span class="source-mode cached" id="sourceMode" role="status">CACHED</span>
     </div>
   </div>
   <div class="header-right">
@@ -1060,7 +1100,7 @@
 
 <div class="mobile-tabs">
   <button class="tab-btn" id="tabMap" onclick="switchTab('map')">Map</button>
-  <button class="tab-btn active" id="tabFeed" onclick="switchTab('feed')">Incident Feed</button>
+  <button class="tab-btn active" id="tabFeed" onclick="switchTab('feed')">Incident Feed<span class="tab-dot" id="tabFeedDot"></span></button>
 </div>
 
 <div class="main-grid">
@@ -1110,7 +1150,7 @@
   <div class="feed-panel tab-active" id="feedPanel">
     <div class="feed-top">
       <span class="feed-label">Incident Feed <span id="feedCount" style="color:var(--accent-cyan);opacity:0.7;font-size:9px;margin-left:4px"></span></span>
-      <button class="btn-refresh" id="btnRefresh" onclick="loadData()">Refresh</button>
+      <button class="btn-refresh" id="btnRefresh" onclick="loadData(true)">Refresh</button>
     </div>
 
     <!-- Type breakdown strip -->
@@ -1145,7 +1185,7 @@
     <div class="feed-list" id="feedList">
       <div class="loader-wrap"><div class="spin-ring"></div><div class="loader-text">Connecting…</div></div>
     </div>
-    <div class="feed-footer" id="footer">AWAITING DATA</div>
+    <div class="feed-footer" id="footer" role="status">AWAITING DATA</div>
   </div>
 </div>
 
@@ -1204,6 +1244,9 @@ function switchTab(tab) {
     mapPanel.classList.remove('tab-active');
     tabFeed.classList.add('active');
     tabMap.classList.remove('active');
+    // Viewing the feed acknowledges any new-incident count
+    const dot = document.getElementById('tabFeedDot');
+    if (dot) { dot.classList.remove('show'); dot.textContent = ''; }
   }
 }
 
@@ -1303,7 +1346,23 @@ function ago(iso) {
     if (m < 1) return 'just now';
     if (m < 60) return m + 'm ago';
     const h = Math.floor(m / 60);
-    return h + 'h ' + (m % 60) + 'm ago';
+    if (h < 48) return h + 'h ' + (m % 60) + 'm ago';
+    const d = Math.floor(h / 24);
+    if (d < 60) return d + 'd ago';
+    return Math.floor(d / 30) + 'mo ago';
+  } catch { return ''; }
+}
+
+// Compact age for the CACHED badge — "5m" / "3h" / "4d" / "2mo"
+function ageShort(iso) {
+  try {
+    const m = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+    if (m < 60) return Math.max(1, m) + 'm';
+    const h = Math.floor(m / 60);
+    if (h < 48) return h + 'h';
+    const d = Math.floor(h / 24);
+    if (d < 60) return d + 'd';
+    return Math.floor(d / 30) + 'mo';
   } catch { return ''; }
 }
 
@@ -1315,6 +1374,25 @@ function isStale(iso) {
 // Minimal HTML escape to prevent XSS from API data
 function esc(s) {
   return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// ══════════════════════════════════════
+// PREFERENCES — persisted UI state
+// { filter, layer_landmarks, layer_highways, layer_flood, historyOpen }
+// ══════════════════════════════════════
+const PREFS_KEY = 'mdpd_prefs';
+
+function loadPrefs() {
+  try { return JSON.parse(localStorage.getItem(PREFS_KEY) || '{}'); }
+  catch { return {}; }
+}
+
+function savePref(key, val) {
+  try {
+    const p = loadPrefs();
+    p[key] = val;
+    localStorage.setItem(PREFS_KEY, JSON.stringify(p));
+  } catch { /* localStorage unavailable */ }
 }
 
 // ══════════════════════════════════════
@@ -1622,6 +1700,7 @@ async function initFloodLayer() {
 
 // ─── Toggle overlay layers ────────────
 function toggleMapLayer(name, visible) {
+  savePref('layer_' + name, visible);
   const layer = overlayLayers[name];
   if (!layer || !map) return;
   if (visible) map.addLayer(layer);
@@ -1639,7 +1718,15 @@ function initOverlays() {
   initLandmarks();
   initHighways();
   initFloodLayer(); // async — fires and forgets
-  Object.values(overlayLayers).forEach(l => { if (l) map.addLayer(l); });
+  // Respect persisted layer visibility (default: on)
+  const prefs = loadPrefs();
+  Object.entries(overlayLayers).forEach(([name, l]) => {
+    if (!l) return;
+    const on = prefs['layer_' + name] !== false;
+    if (on) map.addLayer(l);
+    const box = document.getElementById('tog' + name.charAt(0).toUpperCase() + name.slice(1));
+    if (box) box.checked = on;
+  });
 }
 
 // ══════════════════════════════════════
@@ -1673,6 +1760,7 @@ function getHistory() {
 function toggleHistory() {
   const bar = document.getElementById('historyBar');
   bar.classList.toggle('open');
+  savePref('historyOpen', bar.classList.contains('open'));
   if (bar.classList.contains('open')) drawHistoryChart();
 }
 
@@ -1766,6 +1854,15 @@ function drawHistoryChart() {
 // ══════════════════════════════════════
 // RENDER
 // ══════════════════════════════════════
+const BASE_TITLE   = document.title;
+let currentData    = [];
+let cardRefs       = [];
+let selectedKey    = null;
+let userPos        = null;
+let fitPending     = true;  // fit bounds on first load + explicit Refresh only
+let hiddenNewCount = 0;
+let deepLinkDone   = false;
+
 function incidentKey(item) {
   return item.CreateTime + '|' + item.Address;
 }
@@ -1793,16 +1890,35 @@ function render(data, firstLoad) {
   // Determine new keys (skip on first load to avoid false positives)
   const currentKeys = new Set(data.map(incidentKey));
   const newKeys     = firstLoad ? new Set() : new Set([...currentKeys].filter(k => !seenKeys.has(k)));
-  seenKeys = currentKeys;
+  seenKeys    = currentKeys;
+  currentData = data;
+
+  // Ambient new-incident awareness: title badge while the tab is hidden,
+  // count on the mobile Feed tab while the Map tab is active.
+  if (newKeys.size > 0) {
+    if (document.hidden) {
+      hiddenNewCount += newKeys.size;
+      document.title = '(' + hiddenNewCount + ') ' + BASE_TITLE;
+    }
+    const fp  = document.getElementById('feedPanel');
+    const dot = document.getElementById('tabFeedDot');
+    if (dot && window.innerWidth <= 900 && fp && !fp.classList.contains('tab-active')) {
+      dot.textContent = (parseInt(dot.textContent, 10) || 0) + newKeys.size;
+      dot.classList.add('show');
+    }
+  }
 
   const list = document.getElementById('feedList');
+  const prevScroll = list.scrollTop;
   list.innerHTML = '';
   markerRefs = [];
+  cardRefs   = [];
 
   data.forEach((item, i) => {
     const t       = classify(item.Signal);
+    const key     = incidentKey(item);
     const stale   = isStale(item.CreateTime);
-    const isNew   = newKeys.has(incidentKey(item));
+    const isNew   = newKeys.has(key);
     const mapsUrl = (item.Latitude && item.Longitude)
       ? 'https://maps.google.com/?q=' + item.Latitude + ',' + item.Longitude
       : null;
@@ -1810,7 +1926,15 @@ function render(data, firstLoad) {
     // ── Card ──────────────────────────────
     const card = document.createElement('div');
     card.className = 'card t-' + t + (stale ? ' stale' : '');
-    card.style.animationDelay = (i * 40) + 'ms';
+    card.setAttribute('tabindex', '0');
+    card.setAttribute('role', 'button');
+    // Entrance motion only for the initial paint and genuinely new incidents —
+    // unchanged cards must sit still across the 60s auto-refresh.
+    if (firstLoad || isNew) {
+      card.classList.add('anim');
+      card.style.animationDelay = (i * 40) + 'ms';
+    }
+    if (key === selectedKey) card.classList.add('selected');
 
     const newBit      = isNew        ? '<span class="badge-new">New</span>' : '';
     const staleBit    = stale        ? '<span class="stale-label">(3h+)</span>' : '';
@@ -1830,11 +1954,13 @@ function render(data, firstLoad) {
       '</div>' +
       '<div class="card-addr">' + esc(item.Address || 'Unknown address') + '</div>' +
       landmarkBit +
-      '<div class="card-meta">' + idxBit + '<span>' + ago(item.CreateTime) + '</span>' + gridBit + mapsBit + '</div>';
+      '<div class="card-meta">' + idxBit + '<span class="age" data-iso="' + esc(item.CreateTime) + '">' + ago(item.CreateTime) + '</span><span class="card-dist"></span>' + gridBit + mapsBit + '</div>';
 
     card.onclick = () => {
       list.querySelectorAll('.card').forEach(c => c.classList.remove('selected'));
       card.classList.add('selected');
+      selectedKey = key;
+      try { history.replaceState(null, '', '#i=' + encodeURIComponent(key)); } catch {}
       if (map && item.Latitude && item.Longitude) {
         const mk    = markerRefs[i];
         if (!mk) return;
@@ -1853,7 +1979,11 @@ function render(data, firstLoad) {
         else doFly();
       }
     };
+    card.onkeydown = (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); card.click(); }
+    };
     list.appendChild(card);
+    cardRefs[i] = card;
 
     // ── Map marker ────────────────────────
     if (map && item.Latitude && item.Longitude) {
@@ -1882,6 +2012,8 @@ function render(data, firstLoad) {
       const mapsPopupLink = mapsUrl
         ? '<a class="maps-link" href="' + mapsUrl + '" target="_blank" rel="noopener" style="display:inline-block;margin-top:5px">↗ Open in Google Maps</a>'
         : '';
+      const copyPopupLink =
+        '<a class="maps-link" href="#" onclick="return copyIncidentLink(event,' + i + ')" style="display:inline-block;margin-top:5px;margin-left:10px">⧉ Copy link</a>';
 
       const mk = L.marker([item.Latitude, item.Longitude], { icon })
         .bindPopup(
@@ -1890,38 +2022,181 @@ function render(data, firstLoad) {
           landmarkPopup +
           '<div class="pop-time">' + fmtTime(item.CreateTime) + ' · ' + ago(item.CreateTime) + ' · Grid ' + esc(item.Grid || '—') + '</div>' +
           svHtml +
-          mapsPopupLink,
+          mapsPopupLink + copyPopupLink,
           { closeButton: false, maxWidth: GOOGLE_API_KEY ? 290 : 220 }
         );
+
+      // Marker → card echo (desktop): selecting on the map highlights the feed
+      mk._t = t;
+      mk.on('click', () => {
+        selectedKey = key;
+        try { history.replaceState(null, '', '#i=' + encodeURIComponent(key)); } catch {}
+        if (window.innerWidth > 900) {
+          list.querySelectorAll('.card').forEach(c => c.classList.remove('selected'));
+          const c = cardRefs[i];
+          if (c) { c.classList.add('selected'); c.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
+        }
+      });
 
       layerGroup.addLayer(mk);
       markerRefs[i] = mk;
     }
   });
 
-  // Fit all markers in view
-  if (map) {
+  // Fit all markers in view — only on initial load or an explicit Refresh,
+  // never on the silent 60s auto-refresh (it would yank the user's viewport).
+  if (map && fitPending) {
     const pts = data.filter(d => d.Latitude && d.Longitude).map(d => [d.Latitude, d.Longitude]);
     if (pts.length > 1) map.fitBounds(pts, { padding: [40, 40], maxZoom: 13 });
   }
 
+  updateDistances();
+
   // Reapply active filter after re-render
   setFilter(activeFilter);
+
+  // Restore feed scroll position across re-renders
+  list.scrollTop = prevScroll;
 }
 
 // ══════════════════════════════════════
-// FEED FILTER
+// FEED FILTER — one filtering brain for feed AND map
 // ══════════════════════════════════════
-let activeFilter = 'all';
+let activeFilter = loadPrefs().filter || 'all';
 
 function setFilter(type) {
   activeFilter = type;
+  savePref('filter', type);
   document.querySelectorAll('.filter-tab').forEach(t => {
-    t.classList.toggle('active', t.dataset.filter === type);
+    const on = t.dataset.filter === type;
+    t.classList.toggle('active', on);
+    t.setAttribute('aria-pressed', on);
   });
+
+  let visible = 0;
   document.querySelectorAll('#feedList .card').forEach(card => {
-    card.style.display = (type === 'all' || card.classList.contains('t-' + type)) ? '' : 'none';
+    const show = type === 'all' || card.classList.contains('t-' + type);
+    card.style.display = show ? '' : 'none';
+    if (show) visible++;
   });
+
+  // The map obeys the same filter as the feed
+  try {
+    layerGroup.clearLayers();
+    markerRefs.forEach(mk => {
+      if (mk && (type === 'all' || mk._t === type)) layerGroup.addLayer(mk);
+    });
+  } catch {}
+
+  // Quiet empty state when a filter matches nothing
+  const list = document.getElementById('feedList');
+  const prevEmpty = document.getElementById('feedEmpty');
+  if (prevEmpty) prevEmpty.remove();
+  if (visible === 0 && list && list.querySelector('.card')) {
+    const labels = { accident: 'accident', injury: 'injury', hitrun: 'hit & run', other: 'other' };
+    const div = document.createElement('div');
+    div.className = 'loader-wrap';
+    div.id = 'feedEmpty';
+    div.innerHTML = '<div class="loader-text">No ' + (labels[type] || '') + ' incidents active</div>';
+    list.appendChild(div);
+  }
+}
+
+// ══════════════════════════════════════
+// SHAREABLE INCIDENT LINKS — #i=<key>
+// ══════════════════════════════════════
+function copyIncidentLink(e, idx) {
+  e.preventDefault();
+  e.stopPropagation();
+  const item = currentData[idx];
+  if (!item) return false;
+  const url = location.origin + location.pathname + '#i=' + encodeURIComponent(incidentKey(item));
+  const el  = e.target;
+  const done = () => {
+    el.textContent = '✓ Copied';
+    setTimeout(() => { el.textContent = '⧉ Copy link'; }, 1500);
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(url).then(done).catch(() => { el.textContent = url; });
+  } else {
+    el.textContent = url;
+  }
+  return false;
+}
+
+// On arrival with #i=<key>, land on the incident via the normal card-click
+// behavior. If it has expired, fall back silently to the normal view.
+function applyDeepLink() {
+  if (deepLinkDone) return;
+  deepLinkDone = true;
+  try {
+    const m = location.hash.match(/^#i=(.+)$/);
+    if (!m) return;
+    const key = decodeURIComponent(m[1]);
+    const idx = currentData.findIndex(d => incidentKey(d) === key);
+    if (idx >= 0 && cardRefs[idx]) cardRefs[idx].click();
+  } catch { /* malformed hash — ignore */ }
+}
+
+// ══════════════════════════════════════
+// NEAR ME — locate button + card distances
+// ══════════════════════════════════════
+let youMarker = null;
+
+function distMiles(lat1, lng1, lat2, lng2) {
+  const R = 3958.8, rad = Math.PI / 180;
+  const dLat = (lat2 - lat1) * rad, dLng = (lng2 - lng1) * rad;
+  const a = Math.sin(dLat / 2) ** 2 +
+            Math.cos(lat1 * rad) * Math.cos(lat2 * rad) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function updateDistances() {
+  if (!userPos) return;
+  cardRefs.forEach((card, i) => {
+    const item = currentData[i];
+    if (!card || !item || !item.Latitude || !item.Longitude) return;
+    const el = card.querySelector('.card-dist');
+    if (el) el.textContent = distMiles(userPos.lat, userPos.lng, item.Latitude, item.Longitude).toFixed(1) + ' MI';
+  });
+}
+
+function locateUser(btn) {
+  if (!navigator.geolocation || !map) return;
+  navigator.geolocation.getCurrentPosition(pos => {
+    userPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+    if (youMarker) { try { map.removeLayer(youMarker); } catch {} }
+    const icon = L.divIcon({
+      className: '',
+      html: '<div class="lm-marker lm-you" title="You are here">◉</div>',
+      iconSize: [22, 22], iconAnchor: [11, 11]
+    });
+    youMarker = L.marker([userPos.lat, userPos.lng], { icon })
+      .bindPopup('<div class="pop-sig" style="color:#3bfff0">YOUR LOCATION</div>', { closeButton: false, maxWidth: 160 })
+      .addTo(map);
+    map.flyTo([userPos.lat, userPos.lng], 13, { duration: 0.7 });
+    updateDistances();
+  }, () => {
+    if (btn) btn.title = 'Location unavailable';
+  }, { enableHighAccuracy: false, timeout: 8000 });
+}
+
+if (map) {
+  const LocateControl = L.Control.extend({
+    options: { position: 'topright' },
+    onAdd() {
+      const bar = L.DomUtil.create('div', 'leaflet-bar');
+      const a   = L.DomUtil.create('a', '', bar);
+      a.href = '#';
+      a.title = 'Show my location';
+      a.innerHTML = '◎';
+      a.setAttribute('role', 'button');
+      a.setAttribute('aria-label', 'Show my location');
+      L.DomEvent.on(a, 'click', (e) => { L.DomEvent.stop(e); locateUser(a); });
+      return bar;
+    }
+  });
+  new LocateControl().addTo(map);
 }
 
 // ══════════════════════════════════════
@@ -1947,7 +2222,8 @@ function startCountdown() {
   }, 1000);
 }
 
-async function loadData() {
+async function loadData(manual) {
+  if (manual === true) fitPending = true; // explicit Refresh re-frames the map
   const btn = document.getElementById('btnRefresh');
   if (btn) { btn.classList.add('busy'); btn.textContent = 'Loading…'; }
   try { layerGroup.clearLayers(); } catch {}
@@ -1973,8 +2249,15 @@ async function loadData() {
 
   const badge = document.getElementById('sourceMode');
   if (badge) {
-    badge.className   = 'source-mode ' + source;
-    badge.textContent = source === 'live' ? 'LIVE' : 'CACHED';
+    badge.className = 'source-mode ' + source;
+    if (source === 'live') {
+      badge.textContent = 'LIVE';
+    } else {
+      // Be honest about how old the cached data actually is
+      const newest = data.reduce((max, d) => (d.CreateTime > max ? d.CreateTime : max), '');
+      const age    = newest ? ageShort(newest) : '';
+      badge.textContent = 'CACHED' + (age ? ' · ' + age + ' OLD' : '');
+    }
   }
 
   // Never let a render/chart exception leave the feed panel blank
@@ -1990,6 +2273,8 @@ async function loadData() {
     console.error('render failed:', err);
   }
   isFirstLoad = false;
+  fitPending  = false;
+  applyDeepLink();
 
   try {
     saveHistory(data.length);
@@ -2023,12 +2308,26 @@ function tick() {
 setInterval(tick, 1000);
 tick();
 
+// Keep relative "ago" labels honest between the 60s refreshes
+setInterval(() => {
+  document.querySelectorAll('#feedList .age').forEach(el => {
+    if (el.dataset.iso) el.textContent = ago(el.dataset.iso);
+  });
+}, 30000);
+
 // ══════════════════════════════════════
 // INIT
 // Paint FALLBACK_DATA synchronously so the intro is instant (cards visible
 // in the first frame). Live data replaces it as soon as the fetch resolves;
 // isFirstLoad stays true so the live swap skips "New" badges.
 // ══════════════════════════════════════
+// Restore persisted history-chart state before first paint (default: open)
+try {
+  if (loadPrefs().historyOpen === false) {
+    document.getElementById('historyBar').classList.remove('open');
+  }
+} catch {}
+
 try { render(FALLBACK_DATA, true); } catch (e) { console.error('initial render failed:', e); }
 
 loadData().catch(err => { console.error('loadData failed:', err); });
@@ -2053,7 +2352,12 @@ function handleViewportChange() {
 window.addEventListener('resize', handleViewportChange);
 window.addEventListener('orientationchange', handleViewportChange);
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden) handleViewportChange();
+  if (!document.hidden) {
+    handleViewportChange();
+    // Returning to the tab acknowledges the new-incident title badge
+    hiddenNewCount = 0;
+    document.title = BASE_TITLE;
+  }
 });
 </script>
 </body>
