@@ -4,7 +4,15 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="theme-color" content="#0b0d11" />
+<meta name="description" content="Live Miami-Dade Police traffic incidents — accidents, injuries and hit &amp; runs on a real-time map and feed." />
+<meta property="og:title" content="MDPD // LIVE TRAFFIC FEED" />
+<meta property="og:description" content="Live Miami-Dade Police traffic incidents on a real-time map and feed." />
+<meta property="og:type" content="website" />
+<meta name="twitter:card" content="summary" />
 <title>MDPD // LIVE TRAFFIC FEED</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230b0d11'/%3E%3Ccircle cx='16' cy='16' r='5' fill='%23ff4655'/%3E%3Ccircle cx='16' cy='16' r='9.5' fill='none' stroke='%23ff4655' stroke-opacity='.45' stroke-width='2'/%3E%3C/svg%3E" />
+<link rel="apple-touch-icon" href="/icons/icon-192.png" />
+<link rel="manifest" href="/manifest.webmanifest" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin />
@@ -1104,6 +1112,15 @@
     box-shadow: 0 0 6px rgba(var(--r-cyan), 0.6);
   }
 
+  /* Cached / unreachable: footer and countdown take the existing yellow
+     "CACHED" badge colour so the degraded state is visible at a glance. */
+  .feed-footer.offline { color: var(--accent-yellow); }
+  .feed-footer.offline .auto-badge { color: var(--accent-yellow); }
+  .feed-footer.offline .auto-badge::before {
+    background: var(--accent-yellow);
+    box-shadow: 0 0 6px rgba(255, 214, 10, 0.5);
+  }
+
   /* ── LOADING ── */
   .loader-wrap {
     display: flex; flex-direction: column;
@@ -1431,6 +1448,8 @@ function switchTab(tab) {
   const tabFeed   = document.getElementById('tabFeed');
   if (!mapPanel || !feedPanel || !tabMap || !tabFeed) return;
 
+  tabMap.setAttribute('aria-pressed', tab === 'map');
+  tabFeed.setAttribute('aria-pressed', tab !== 'map');
   if (tab === 'map') {
     mapPanel.classList.add('tab-active');
     feedPanel.classList.remove('tab-active');
@@ -1540,14 +1559,25 @@ function ic(id, cls) {
   return '<svg class="ic' + (cls ? ' ' + cls : '') + '"><use href="#' + id + '"/></svg>';
 }
 
+// Parse an API timestamp; returns NaN for anything unparseable so callers
+// never print "Invalid Date" or "NaNm ago".
+function parseTs(iso) {
+  const t = new Date(iso).getTime();
+  return Number.isFinite(t) ? t : NaN;
+}
+
 function fmtTime(iso) {
-  try { return new Date(iso).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }); }
-  catch { return '—'; }
+  try {
+    const t = parseTs(iso);
+    return Number.isNaN(t) ? '—' : new Date(t).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+  } catch { return '—'; }
 }
 
 function ago(iso) {
   try {
-    const m = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+    const t = parseTs(iso);
+    if (Number.isNaN(t)) return '';
+    const m = Math.round((Date.now() - t) / 60000);
     if (m < 1) return 'just now';
     if (m < 60) return m + 'm ago';
     const h = Math.floor(m / 60);
@@ -2268,11 +2298,20 @@ function render(data, firstLoad) {
           '<div class="pop-sig" style="color:' + COLORS[t] + '">' + esc(item.Signal) + '</div>' +
           '<div class="pop-addr">' + esc(item.Address) + '</div>' +
           landmarkPopup +
-          '<div class="pop-time">' + fmtTime(item.CreateTime) + ' · ' + ago(item.CreateTime) + ' · Grid ' + esc(item.Grid || '—') + '</div>' +
+          '<div class="pop-time">' + fmtTime(item.CreateTime) + ' · <span class="pop-age">' + ago(item.CreateTime) + '</span> · Grid ' + esc(item.Grid || '—') + '</div>' +
           svHtml +
           mapsPopupLink + copyPopupLink,
           { closeButton: false, maxWidth: GOOGLE_API_KEY ? 290 : 220 }
         );
+
+      // The popup HTML is built at render time; recompute the relative age
+      // each time it opens so an hour-old popup never says "5m ago".
+      mk.on('popupopen', (e) => {
+        try {
+          const el = e.popup.getElement().querySelector('.pop-age');
+          if (el) el.textContent = ago(item.CreateTime);
+        } catch {}
+      });
 
       // Marker → card echo (desktop): selecting on the map highlights the feed
       mk._t = t;
@@ -2454,27 +2493,87 @@ if (map) {
 let isFirstLoad = true;
 let nextRefreshAt = null;
 let countdownInterval = null;
+let refreshTimer    = null;
 let fetchInProgress = false;
 let lastFetchAt     = 0;
 let lastDataSig     = '';
+let failStreak      = 0;      // consecutive polls where no live source answered
+let lastGood        = null;   // { at, data } — most recent live payload this session
 
 const REFRESH_MS        = 60000;      // visible-tab poll interval
 const HIDDEN_REFRESH_MS = 5 * 60000;  // background tabs poll 5x less often
+const MAX_BACKOFF_MS    = 10 * 60000; // cap for the failure backoff
 const PROXY_TIMEOUT_MS  = 5000;       // allows for a serverless cold start
 const DIRECT_TIMEOUT_MS = 4000;
+const LAST_GOOD_KEY     = 'mdpd_last_feed';
 
-function startCountdown() {
-  nextRefreshAt = Date.now() + REFRESH_MS;
+// ─── Last-known-good cache ───────────
+// A transient outage must never replace fresh incidents with the months-old
+// embedded fallback. The newest live payload is kept in memory and in
+// localStorage so a reload during an outage still shows recent data.
+function saveLastGood(data) {
+  lastGood = { at: Date.now(), data };
+  try { localStorage.setItem(LAST_GOOD_KEY, JSON.stringify(lastGood)); } catch {}
+}
+
+function loadLastGood() {
+  if (lastGood) return lastGood;
+  try {
+    const v = JSON.parse(localStorage.getItem(LAST_GOOD_KEY) || 'null');
+    if (v && Array.isArray(v.data) && v.data.length && Number.isFinite(v.at)) { lastGood = v; return v; }
+  } catch {}
+  return null;
+}
+
+// ─── Normalisation ───────────────────
+// The feed is chronological, always (design guardrail #6), and incident keys
+// must be unique for deep links and marker/card echo to be unambiguous.
+function normalize(data) {
+  const seen = new Set();
+  return data
+    .filter(d => d && typeof d === 'object')
+    .filter(d => { const k = incidentKey(d); if (seen.has(k)) return false; seen.add(k); return true; })
+    .sort((a, b) => {
+      const ta = parseTs(a.CreateTime), tb = parseTs(b.CreateTime);
+      if (Number.isNaN(ta) && Number.isNaN(tb)) return 0;
+      if (Number.isNaN(ta)) return 1;
+      if (Number.isNaN(tb)) return -1;
+      return tb - ta;
+    });
+}
+
+// ─── Scheduling ──────────────────────
+// One timer, re-armed after every poll. Delay grows while live sources are
+// down (60s → 2m → 4m → 8m → 10m cap) and while the tab is hidden.
+function nextDelay() {
+  let d = REFRESH_MS;
+  if (failStreak > 0) d = Math.min(MAX_BACKOFF_MS, REFRESH_MS * Math.pow(2, failStreak));
+  if (document.hidden) d = Math.max(d, HIDDEN_REFRESH_MS);
+  return d;
+}
+
+function scheduleNext(delay) {
+  clearTimeout(refreshTimer);
+  refreshTimer = setTimeout(() => { loadData().catch(() => {}); }, delay);
+  startCountdown(delay);
+}
+
+function startCountdown(delay) {
+  nextRefreshAt = Date.now() + delay;
   if (countdownInterval) clearInterval(countdownInterval);
-  countdownInterval = setInterval(() => {
+  const word = failStreak > 0 ? 'Retrying in ' : 'Next refresh in ';
+  const fmt  = (sec) => sec >= 90 ? Math.ceil(sec / 60) + 'm' : sec + 's';
+  const paint = () => {
     const sec    = Math.max(0, Math.round((nextRefreshAt - Date.now()) / 1000));
     const autoEl = document.querySelector('#footer .auto-badge');
-    if (autoEl) autoEl.textContent = 'Next refresh in ' + sec + 's';
+    if (autoEl) autoEl.textContent = word + fmt(sec);
     // Mirror countdown in the refresh button for quick visibility
     const btn = document.getElementById('btnRefresh');
     const lbl = document.getElementById('btnRefreshLabel');
-    if (btn && lbl && !btn.classList.contains('busy')) lbl.textContent = 'Refresh · ' + sec + 's';
-  }, 1000);
+    if (btn && lbl && !btn.classList.contains('busy')) lbl.textContent = 'Refresh · ' + fmt(sec);
+  };
+  paint();
+  countdownInterval = setInterval(paint, 1000);
 }
 
 async function fetchFeed(url, timeoutMs) {
@@ -2485,13 +2584,15 @@ async function fetchFeed(url, timeoutMs) {
 }
 
 async function loadData(manual) {
-  if (manual === true) fitPending = true; // explicit Refresh re-frames the map
-  if (fetchInProgress) return;            // never run two polls concurrently
+  if (manual === true) { fitPending = true; failStreak = 0; } // explicit Refresh re-frames + resets backoff
+  if (fetchInProgress) return;                                 // never run two polls concurrently
   fetchInProgress = true;
+  clearTimeout(refreshTimer);
   try {
     await doLoad();
   } finally {
     fetchInProgress = false;
+    scheduleNext(nextDelay());
   }
 }
 
@@ -2502,15 +2603,27 @@ async function doLoad() {
 
   let data   = null;
   let source = 'cached';
+  let cachedAt = null; // when the data we're showing was last confirmed live
 
-  // 1. Vercel proxy (edge-cached) → 2. MDPD API directly → 3. embedded fallback
+  // 1. Vercel proxy (edge-cached) → 2. MDPD API directly →
+  // 3. last-known-good (this session or localStorage) → 4. embedded fallback
   try { data = await fetchFeed('/api/traffic', PROXY_TIMEOUT_MS); } catch {}
   if (!data) {
     try { data = await fetchFeed('https://traffic.mdpd.com/api/traffic', DIRECT_TIMEOUT_MS); } catch {}
   }
-  if (data) source = 'live';
-  else      { data = FALLBACK_DATA; source = 'cached'; }
 
+  if (data) {
+    source = 'live';
+    failStreak = 0;
+    saveLastGood(data);
+  } else {
+    failStreak++;
+    const lg = loadLastGood();
+    if (lg) { data = lg.data; cachedAt = lg.at; }
+    else    { data = FALLBACK_DATA; }
+  }
+
+  data        = normalize(data);
   isLive      = source === 'live';
   lastFetchAt = Date.now();
 
@@ -2520,9 +2633,12 @@ async function doLoad() {
     if (source === 'live') {
       badge.textContent = 'LIVE';
     } else {
-      // Be honest about how old the cached data actually is
-      const newest = data.reduce((max, d) => (d.CreateTime > max ? d.CreateTime : max), '');
-      const age    = newest ? ageShort(newest) : '';
+      // Be honest about how old the cached data actually is: time since the
+      // last successful fetch, or the newest record for the embedded set.
+      const newest = cachedAt
+        ? new Date(cachedAt).toISOString()
+        : data.reduce((max, d) => (d.CreateTime > max ? d.CreateTime : max), '');
+      const age = newest ? ageShort(newest) : '';
       badge.textContent = 'CACHED' + (age ? ' · ' + age + ' OLD' : '');
     }
   }
@@ -2552,23 +2668,27 @@ async function doLoad() {
   fitPending  = false;
   applyDeepLink();
 
-  try {
-    saveHistory(data.length);
-    const hb = document.getElementById('historyBar');
-    if (hb && hb.classList.contains('open')) drawHistoryChart();
-  } catch {}
+  // Only live polls count toward the activity history — replaying cached
+  // data would flatten the chart into a fake plateau.
+  if (source === 'live') {
+    try {
+      saveHistory(data.length);
+      const hb = document.getElementById('historyBar');
+      if (hb && hb.classList.contains('open')) drawHistoryChart();
+    } catch {}
+  }
 
   const ts = new Date().toLocaleTimeString('en-US', {
     hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true
   });
   const footer = document.getElementById('footer');
   if (footer) {
-    footer.innerHTML =
-      (source === 'live' ? 'LIVE UPDATED ' : 'CACHED · CHECKED ') + ts +
-      '<span class="auto-badge">Next refresh in ' + (REFRESH_MS / 1000) + 's</span>';
+    const state = source === 'live' ? 'LIVE UPDATED '
+                : failStreak > 1    ? 'SOURCE UNREACHABLE · LAST CHECK '
+                :                     'CACHED · CHECKED ';
+    footer.innerHTML = state + ts + '<span class="auto-badge"></span>';
+    footer.classList.toggle('offline', source !== 'live');
   }
-
-  startCountdown();
 
   if (btn) { btn.classList.remove('busy'); if (btnLbl) btnLbl.textContent = 'Refresh'; }
 }
@@ -2600,17 +2720,26 @@ try {
   }
 } catch {}
 
-try { render(FALLBACK_DATA, true); } catch (e) { console.error('initial render failed:', e); }
+try {
+  const lg = loadLastGood();
+  render(normalize(lg ? lg.data : FALLBACK_DATA), true);
+} catch (e) { console.error('initial render failed:', e); }
 
+// First poll. Every poll re-arms the next one (see scheduleNext): 60s while
+// visible, 5 min while hidden (the title badge still counts new incidents),
+// and exponential backoff while the live sources are down.
 loadData().catch(err => { console.error('loadData failed:', err); });
 
-// Poll every 60s while visible. A hidden tab still polls (so the title badge
-// can count new incidents) but only every 5 minutes, cutting API load for
-// the common "left open in a background tab" case.
-setInterval(() => {
-  if (document.hidden && Date.now() - lastFetchAt < HIDDEN_REFRESH_MS) return;
-  loadData().catch(() => {});
-}, REFRESH_MS);
+// Regained connectivity: don't wait out a long backoff.
+window.addEventListener('online', () => { failStreak = 0; loadData().catch(() => {}); });
+
+// Installable PWA: app-shell service worker (network-first for the page,
+// cache-first for fonts and map libraries). Never touches /api/traffic.
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => { /* optional */ });
+  });
+}
 
 // Defer non-critical map overlays to idle time so they don't block
 // first paint or the initial live-data fetch.
@@ -2637,7 +2766,7 @@ document.addEventListener('visibilitychange', () => {
     hiddenNewCount = 0;
     document.title = BASE_TITLE;
     // ...and catches up immediately if the background poll was throttled
-    if (Date.now() - lastFetchAt >= REFRESH_MS) loadData().catch(() => {});
+    if (Date.now() - lastFetchAt >= REFRESH_MS && !fetchInProgress) loadData().catch(() => {});
   }
 });
 </script>

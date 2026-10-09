@@ -16,7 +16,7 @@
 | Secondary Sources | NWS Weather API, Google Street View (optional) |
 | Caching | Vercel ISR (30s/60s stale), localStorage (12h history chart) |
 | Refresh | 60-second polling while visible; 5-minute polling while the tab is hidden |
-| Fallback | 3-tier: Vercel proxy → Direct MDPD API → Embedded fallback data |
+| Fallback | 4-tier: Vercel proxy → Direct MDPD API → Last-known-good (memory/localStorage) → Embedded fallback data |
 
 **Data shape per incident:**
 ```json
@@ -43,7 +43,9 @@
 | Quick Win #4 — Single-pass classification | ✅ Done | `render()` classifies each item once. |
 | 5d — Visibility-aware polling | ✅ Done (modified) | Hidden tabs keep polling, but every 5 min instead of 60 s, so the title-badge "new incident" count still works. Returning to the tab triggers an immediate catch-up fetch if data is older than 60 s. |
 | 6a — Edge caching on the proxy | ✅ Done | `s-maxage=30, stale-while-revalidate=60`; failures are sent `no-store` so a bad upstream response is never cached. |
-| 9b — Exponential backoff on failure | ⏳ Not yet | Fetch timeouts are bounded (5 s proxy / 4 s direct) so a down upstream costs at most ~9 s per poll. |
+| 9b — Exponential backoff on failure | ✅ Done | `nextDelay()`: 60 s → 2 m → 4 m → 8 m → 10 m cap while no live source answers; footer shows `Retrying in …`. Manual Refresh and the `online` event reset it. |
+| Last-known-good cache | ✅ Done | Newest live payload kept in memory and `localStorage`; an outage shows it as `CACHED · <age> OLD` instead of the months-old embedded set. |
+| Installable PWA | ✅ Done | `manifest.webmanifest` + `sw.js` (network-first page, cache-first fonts/Leaflet, API never cached). |
 | 6a — ETag / conditional responses | ⏳ Not yet | |
 | 5b — Staged loading | ✅ Done | Fallback data paints synchronously; overlays load in `requestIdleCallback`. |
 
