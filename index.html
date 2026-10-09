@@ -4,7 +4,15 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="theme-color" content="#0b0d11" />
+<meta name="description" content="Live Miami-Dade Police traffic incidents — accidents, injuries and hit &amp; runs on a real-time map and feed." />
+<meta property="og:title" content="MDPD // LIVE TRAFFIC FEED" />
+<meta property="og:description" content="Live Miami-Dade Police traffic incidents on a real-time map and feed." />
+<meta property="og:type" content="website" />
+<meta name="twitter:card" content="summary" />
 <title>MDPD // LIVE TRAFFIC FEED</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230b0d11'/%3E%3Ccircle cx='16' cy='16' r='5' fill='%23ff4655'/%3E%3Ccircle cx='16' cy='16' r='9.5' fill='none' stroke='%23ff4655' stroke-opacity='.45' stroke-width='2'/%3E%3C/svg%3E" />
+<link rel="apple-touch-icon" href="/icons/icon-192.png" />
+<link rel="manifest" href="/manifest.webmanifest" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin />
@@ -1104,6 +1112,15 @@
     box-shadow: 0 0 6px rgba(var(--r-cyan), 0.6);
   }
 
+  /* Cached / unreachable: footer and countdown take the existing yellow
+     "CACHED" badge colour so the degraded state is visible at a glance. */
+  .feed-footer.offline { color: var(--accent-yellow); }
+  .feed-footer.offline .auto-badge { color: var(--accent-yellow); }
+  .feed-footer.offline .auto-badge::before {
+    background: var(--accent-yellow);
+    box-shadow: 0 0 6px rgba(255, 214, 10, 0.5);
+  }
+
   /* ── LOADING ── */
   .loader-wrap {
     display: flex; flex-direction: column;
@@ -1371,7 +1388,7 @@
     <!-- 24-hour activity chart (open by default) -->
     <div class="history-bar open" id="historyBar">
       <div class="history-header" onclick="toggleHistory()">
-        <span class="history-title">24H Activity</span>
+        <span class="history-title">12H Activity</span>
         <span class="history-peak" id="historyPeak"></span>
         <span class="history-toggle"><svg class="ic ic-sm"><use href="#i-chevron"/></svg></span>
       </div>
@@ -1431,6 +1448,8 @@ function switchTab(tab) {
   const tabFeed   = document.getElementById('tabFeed');
   if (!mapPanel || !feedPanel || !tabMap || !tabFeed) return;
 
+  tabMap.setAttribute('aria-pressed', tab === 'map');
+  tabFeed.setAttribute('aria-pressed', tab !== 'map');
   if (tab === 'map') {
     mapPanel.classList.add('tab-active');
     feedPanel.classList.remove('tab-active');
@@ -1540,14 +1559,25 @@ function ic(id, cls) {
   return '<svg class="ic' + (cls ? ' ' + cls : '') + '"><use href="#' + id + '"/></svg>';
 }
 
+// Parse an API timestamp; returns NaN for anything unparseable so callers
+// never print "Invalid Date" or "NaNm ago".
+function parseTs(iso) {
+  const t = new Date(iso).getTime();
+  return Number.isFinite(t) ? t : NaN;
+}
+
 function fmtTime(iso) {
-  try { return new Date(iso).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }); }
-  catch { return '—'; }
+  try {
+    const t = parseTs(iso);
+    return Number.isNaN(t) ? '—' : new Date(t).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+  } catch { return '—'; }
 }
 
 function ago(iso) {
   try {
-    const m = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+    const t = parseTs(iso);
+    if (Number.isNaN(t)) return '';
+    const m = Math.round((Date.now() - t) / 60000);
     if (m < 1) return 'just now';
     if (m < 60) return m + 'm ago';
     const h = Math.floor(m / 60);
@@ -2077,17 +2107,53 @@ function incidentKey(item) {
   return item.CreateTime + '|' + item.Address;
 }
 
+// Validated [lat, lng] for an incident, or null. API values are untrusted —
+// never interpolate them into URLs or Leaflet calls without this check.
+function coords(item) {
+  const lat = Number(item && item.Latitude), lng = Number(item && item.Longitude);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  if (lat === 0 && lng === 0) return null;
+  if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+  return [lat, lng];
+}
+
+function fitToData(data) {
+  if (!map || !fitPending) return;
+  const pts = data.map(coords).filter(Boolean);
+  if (pts.length > 1) map.fitBounds(pts, { padding: [40, 40], maxZoom: 13 });
+  // fitPending is cleared by loadData(), not here, so the synchronous
+  // fallback paint and the first live load both frame the map.
+}
+
+// Ages and stale dimming are time-based, so they must move even when the
+// data itself hasn't changed (the diff check in loadData skips render then).
+function refreshAges() {
+  document.querySelectorAll('#feedList .card').forEach(card => {
+    const el = card.querySelector('.age');
+    if (!el || !el.dataset.iso) return;
+    el.textContent = ago(el.dataset.iso);
+    if (isStale(el.dataset.iso) && !card.classList.contains('stale')) {
+      card.classList.add('stale');
+      const tm = card.querySelector('.card-time');
+      if (tm && !tm.querySelector('.stale-label')) tm.insertAdjacentHTML('beforeend', '<span class="stale-label">(3h+)</span>');
+    }
+  });
+}
+
 function render(data, firstLoad) {
   // Stats
+  // Classify once per item; every count below derives from this pass.
+  const types = data.map(d => classify(d.Signal));
+  const typeCounts = { accident: 0, injury: 0, hitrun: 0, other: 0 };
+  types.forEach(t => { if (t in typeCounts) typeCounts[t]++; });
+
   document.getElementById('sCount').textContent = data.length;
-  document.getElementById('sInj').textContent   = data.filter(d => classify(d.Signal) === 'injury').length;
-  document.getElementById('sHR').textContent    = data.filter(d => classify(d.Signal) === 'hitrun').length;
+  document.getElementById('sInj').textContent   = typeCounts.injury;
+  document.getElementById('sHR').textContent    = typeCounts.hitrun;
   const feedCountEl = document.getElementById('feedCount');
   if (feedCountEl) feedCountEl.textContent = '· ' + data.length + ' active';
 
   // Per-type counts for breakdown strip + filter tabs
-  const typeCounts = { accident: 0, injury: 0, hitrun: 0, other: 0 };
-  data.forEach(d => { const t = classify(d.Signal); if (t in typeCounts) typeCounts[t]++; });
   ['accident','injury','hitrun','other'].forEach(t => {
     const chip = document.getElementById('chipN-' + t);
     if (chip) chip.textContent = typeCounts[t];
@@ -2125,13 +2191,12 @@ function render(data, firstLoad) {
   cardRefs   = [];
 
   data.forEach((item, i) => {
-    const t       = classify(item.Signal);
+    const t       = types[i];
     const key     = incidentKey(item);
     const stale   = isStale(item.CreateTime);
     const isNew   = newKeys.has(key);
-    const mapsUrl = (item.Latitude && item.Longitude)
-      ? 'https://maps.google.com/?q=' + item.Latitude + ',' + item.Longitude
-      : null;
+    const pos     = coords(item);
+    const mapsUrl = pos ? 'https://maps.google.com/?q=' + pos[0] + ',' + pos[1] : null;
 
     // ── Card ──────────────────────────────
     const card = document.createElement('div');
@@ -2174,11 +2239,11 @@ function render(data, firstLoad) {
       card.classList.add('selected');
       selectedKey = key;
       try { history.replaceState(null, '', '#i=' + encodeURIComponent(key)); } catch {}
-      if (map && item.Latitude && item.Longitude) {
+      if (map && pos) {
         const mk    = markerRefs[i];
         if (!mk) return;
         const fly = () => {
-          map.flyTo([item.Latitude, item.Longitude], 15, { duration: 0.7 });
+          map.flyTo(pos, 15, { duration: 0.7 });
           mk.openPopup();
         };
         const doFly = () => {
@@ -2199,7 +2264,7 @@ function render(data, firstLoad) {
     cardRefs[i] = card;
 
     // ── Map marker ────────────────────────
-    if (map && item.Latitude && item.Longitude) {
+    if (map && pos) {
       const icon = L.divIcon({
         className: '',
         html: '<div class="pulse-marker m-' + t + '"></div>',
@@ -2211,7 +2276,7 @@ function render(data, firstLoad) {
         ? '<div class="popup-sv">' +
             '<span class="popup-sv-loading">Loading view…</span>' +
             '<img src="https://maps.googleapis.com/maps/api/streetview' +
-              '?size=260x110&location=' + item.Latitude + ',' + item.Longitude +
+              '?size=260x110&location=' + pos[0] + ',' + pos[1] +
               '&fov=90&pitch=5&source=outdoor&key=' + GOOGLE_API_KEY + '"' +
               ' onload="this.style.display=\'block\';this.previousElementSibling.style.display=\'none\'"' +
               ' onerror="this.closest(\'.popup-sv\').style.display=\'none\'"' +
@@ -2228,16 +2293,25 @@ function render(data, firstLoad) {
       const copyPopupLink =
         '<a class="maps-link" href="#" onclick="return copyIncidentLink(event,' + i + ')" style="margin-top:6px;margin-left:12px">' + ic('i-copy') + '<span>Copy link</span></a>';
 
-      const mk = L.marker([item.Latitude, item.Longitude], { icon })
+      const mk = L.marker(pos, { icon })
         .bindPopup(
           '<div class="pop-sig" style="color:' + COLORS[t] + '">' + esc(item.Signal) + '</div>' +
           '<div class="pop-addr">' + esc(item.Address) + '</div>' +
           landmarkPopup +
-          '<div class="pop-time">' + fmtTime(item.CreateTime) + ' · ' + ago(item.CreateTime) + ' · Grid ' + esc(item.Grid || '—') + '</div>' +
+          '<div class="pop-time">' + fmtTime(item.CreateTime) + ' · <span class="pop-age">' + ago(item.CreateTime) + '</span> · Grid ' + esc(item.Grid || '—') + '</div>' +
           svHtml +
           mapsPopupLink + copyPopupLink,
           { closeButton: false, maxWidth: GOOGLE_API_KEY ? 290 : 220 }
         );
+
+      // The popup HTML is built at render time; recompute the relative age
+      // each time it opens so an hour-old popup never says "5m ago".
+      mk.on('popupopen', (e) => {
+        try {
+          const el = e.popup.getElement().querySelector('.pop-age');
+          if (el) el.textContent = ago(item.CreateTime);
+        } catch {}
+      });
 
       // Marker → card echo (desktop): selecting on the map highlights the feed
       mk._t = t;
@@ -2251,17 +2325,13 @@ function render(data, firstLoad) {
         }
       });
 
-      layerGroup.addLayer(mk);
-      markerRefs[i] = mk;
+      markerRefs[i] = mk; // added to the map by setFilter() below
     }
   });
 
   // Fit all markers in view — only on initial load or an explicit Refresh,
   // never on the silent 60s auto-refresh (it would yank the user's viewport).
-  if (map && fitPending) {
-    const pts = data.filter(d => d.Latitude && d.Longitude).map(d => [d.Latitude, d.Longitude]);
-    if (pts.length > 1) map.fitBounds(pts, { padding: [40, 40], maxZoom: 13 });
-  }
+  fitToData(data);
 
   updateDistances();
 
@@ -2369,9 +2439,10 @@ function updateDistances() {
   if (!userPos) return;
   cardRefs.forEach((card, i) => {
     const item = currentData[i];
-    if (!card || !item || !item.Latitude || !item.Longitude) return;
+    const pos  = item && coords(item);
+    if (!card || !pos) return;
     const el = card.querySelector('.card-dist');
-    if (el) el.textContent = distMiles(userPos.lat, userPos.lng, item.Latitude, item.Longitude).toFixed(1) + ' MI';
+    if (el) el.textContent = distMiles(userPos.lat, userPos.lng, pos[0], pos[1]).toFixed(1) + ' MI';
   });
 }
 
@@ -2422,46 +2493,139 @@ if (map) {
 let isFirstLoad = true;
 let nextRefreshAt = null;
 let countdownInterval = null;
+let refreshTimer    = null;
+let fetchInProgress = false;
+let lastFetchAt     = 0;
+let lastDataSig     = '';
+let failStreak      = 0;      // consecutive polls where no live source answered
+let lastGood        = null;   // { at, data } — most recent live payload this session
 
-function startCountdown() {
-  nextRefreshAt = Date.now() + 60000;
+const REFRESH_MS        = 60000;      // visible-tab poll interval
+const HIDDEN_REFRESH_MS = 5 * 60000;  // background tabs poll 5x less often
+const MAX_BACKOFF_MS    = 10 * 60000; // cap for the failure backoff
+const PROXY_TIMEOUT_MS  = 5000;       // allows for a serverless cold start
+const DIRECT_TIMEOUT_MS = 4000;
+const LAST_GOOD_KEY     = 'mdpd_last_feed';
+
+// ─── Last-known-good cache ───────────
+// A transient outage must never replace fresh incidents with the months-old
+// embedded fallback. The newest live payload is kept in memory and in
+// localStorage so a reload during an outage still shows recent data.
+function saveLastGood(data) {
+  lastGood = { at: Date.now(), data };
+  try { localStorage.setItem(LAST_GOOD_KEY, JSON.stringify(lastGood)); } catch {}
+}
+
+function loadLastGood() {
+  if (lastGood) return lastGood;
+  try {
+    const v = JSON.parse(localStorage.getItem(LAST_GOOD_KEY) || 'null');
+    if (v && Array.isArray(v.data) && v.data.length && Number.isFinite(v.at)) { lastGood = v; return v; }
+  } catch {}
+  return null;
+}
+
+// ─── Normalisation ───────────────────
+// The feed is chronological, always (design guardrail #6), and incident keys
+// must be unique for deep links and marker/card echo to be unambiguous.
+function normalize(data) {
+  const seen = new Set();
+  return data
+    .filter(d => d && typeof d === 'object')
+    .filter(d => { const k = incidentKey(d); if (seen.has(k)) return false; seen.add(k); return true; })
+    .sort((a, b) => {
+      const ta = parseTs(a.CreateTime), tb = parseTs(b.CreateTime);
+      if (Number.isNaN(ta) && Number.isNaN(tb)) return 0;
+      if (Number.isNaN(ta)) return 1;
+      if (Number.isNaN(tb)) return -1;
+      return tb - ta;
+    });
+}
+
+// ─── Scheduling ──────────────────────
+// One timer, re-armed after every poll. Delay grows while live sources are
+// down (60s → 2m → 4m → 8m → 10m cap) and while the tab is hidden.
+function nextDelay() {
+  let d = REFRESH_MS;
+  if (failStreak > 0) d = Math.min(MAX_BACKOFF_MS, REFRESH_MS * Math.pow(2, failStreak));
+  if (document.hidden) d = Math.max(d, HIDDEN_REFRESH_MS);
+  return d;
+}
+
+function scheduleNext(delay) {
+  clearTimeout(refreshTimer);
+  refreshTimer = setTimeout(() => { loadData().catch(() => {}); }, delay);
+  startCountdown(delay);
+}
+
+function startCountdown(delay) {
+  nextRefreshAt = Date.now() + delay;
   if (countdownInterval) clearInterval(countdownInterval);
-  countdownInterval = setInterval(() => {
+  const word = failStreak > 0 ? 'Retrying in ' : 'Next refresh in ';
+  const fmt  = (sec) => sec >= 90 ? Math.ceil(sec / 60) + 'm' : sec + 's';
+  const paint = () => {
     const sec    = Math.max(0, Math.round((nextRefreshAt - Date.now()) / 1000));
     const autoEl = document.querySelector('#footer .auto-badge');
-    if (autoEl) autoEl.textContent = 'Next refresh in ' + sec + 's';
+    if (autoEl) autoEl.textContent = word + fmt(sec);
     // Mirror countdown in the refresh button for quick visibility
     const btn = document.getElementById('btnRefresh');
     const lbl = document.getElementById('btnRefreshLabel');
-    if (btn && lbl && !btn.classList.contains('busy')) lbl.textContent = 'Refresh · ' + sec + 's';
-  }, 1000);
+    if (btn && lbl && !btn.classList.contains('busy')) lbl.textContent = 'Refresh · ' + fmt(sec);
+  };
+  paint();
+  countdownInterval = setInterval(paint, 1000);
+}
+
+async function fetchFeed(url, timeoutMs) {
+  const r = await fetch(url, { signal: abortTimeout(timeoutMs), headers: { 'Accept': 'application/json' } });
+  if (!r.ok) return null;
+  const data = await r.json();
+  return (Array.isArray(data) && data.length) ? data : null;
 }
 
 async function loadData(manual) {
-  if (manual === true) fitPending = true; // explicit Refresh re-frames the map
+  if (manual === true) { fitPending = true; failStreak = 0; } // explicit Refresh re-frames + resets backoff
+  if (fetchInProgress) return;                                 // never run two polls concurrently
+  fetchInProgress = true;
+  clearTimeout(refreshTimer);
+  try {
+    await doLoad();
+  } finally {
+    fetchInProgress = false;
+    scheduleNext(nextDelay());
+  }
+}
+
+async function doLoad() {
   const btn = document.getElementById('btnRefresh');
   const btnLbl = document.getElementById('btnRefreshLabel');
   if (btn) { btn.classList.add('busy'); if (btnLbl) btnLbl.textContent = 'Loading…'; }
-  try { layerGroup.clearLayers(); } catch {}
 
   let data   = null;
   let source = 'cached';
+  let cachedAt = null; // when the data we're showing was last confirmed live
 
-  try {
-    const r = await fetch('/api/traffic', { signal: abortTimeout(2000) });
-    if (r.ok) { data = await r.json(); if (Array.isArray(data) && data.length) source = 'live'; else data = null; }
-  } catch {}
-
+  // 1. Vercel proxy (edge-cached) → 2. MDPD API directly →
+  // 3. last-known-good (this session or localStorage) → 4. embedded fallback
+  try { data = await fetchFeed('/api/traffic', PROXY_TIMEOUT_MS); } catch {}
   if (!data) {
-    try {
-      const r = await fetch('https://traffic.mdpd.com/api/traffic', { signal: abortTimeout(2000) });
-      if (r.ok) { data = await r.json(); if (Array.isArray(data) && data.length) source = 'live'; else data = null; }
-    } catch {}
+    try { data = await fetchFeed('https://traffic.mdpd.com/api/traffic', DIRECT_TIMEOUT_MS); } catch {}
   }
 
-  if (!data) { data = FALLBACK_DATA; source = 'cached'; }
+  if (data) {
+    source = 'live';
+    failStreak = 0;
+    saveLastGood(data);
+  } else {
+    failStreak++;
+    const lg = loadLastGood();
+    if (lg) { data = lg.data; cachedAt = lg.at; }
+    else    { data = FALLBACK_DATA; }
+  }
 
-  isLive = source === 'live';
+  data        = normalize(data);
+  isLive      = source === 'live';
+  lastFetchAt = Date.now();
 
   const badge = document.getElementById('sourceMode');
   if (badge) {
@@ -2469,46 +2633,62 @@ async function loadData(manual) {
     if (source === 'live') {
       badge.textContent = 'LIVE';
     } else {
-      // Be honest about how old the cached data actually is
-      const newest = data.reduce((max, d) => (d.CreateTime > max ? d.CreateTime : max), '');
-      const age    = newest ? ageShort(newest) : '';
+      // Be honest about how old the cached data actually is: time since the
+      // last successful fetch, or the newest record for the embedded set.
+      const newest = cachedAt
+        ? new Date(cachedAt).toISOString()
+        : data.reduce((max, d) => (d.CreateTime > max ? d.CreateTime : max), '');
+      const age = newest ? ageShort(newest) : '';
       badge.textContent = 'CACHED' + (age ? ' · ' + age + ' OLD' : '');
     }
   }
 
-  // Never let a render/chart exception leave the feed panel blank
-  try {
-    render(data, isFirstLoad);
-  } catch (err) {
-    const list = document.getElementById('feedList');
-    if (list) {
-      list.innerHTML =
-        '<div class="loader-wrap"><div class="loader-text" style="color:var(--accent-red)">' +
-        'Feed render error — showing minimal view</div></div>';
+  // Diff check: if the incident set is identical to the last poll, skip the
+  // full DOM + marker rebuild. Only the time-based bits need to move.
+  const sig = source + '\n' + data.map(incidentKey).join('\n');
+  if (!isFirstLoad && sig === lastDataSig) {
+    refreshAges();
+    fitToData(data); // honours an explicit Refresh even when nothing changed
+  } else {
+    // Never let a render/chart exception leave the feed panel blank
+    try {
+      render(data, isFirstLoad);
+      lastDataSig = sig;
+    } catch (err) {
+      const list = document.getElementById('feedList');
+      if (list) {
+        list.innerHTML =
+          '<div class="loader-wrap"><div class="loader-text" style="color:var(--accent-red)">' +
+          'Feed render error — showing minimal view</div></div>';
+      }
+      console.error('render failed:', err);
     }
-    console.error('render failed:', err);
   }
   isFirstLoad = false;
   fitPending  = false;
   applyDeepLink();
 
-  try {
-    saveHistory(data.length);
-    const hb = document.getElementById('historyBar');
-    if (hb && hb.classList.contains('open')) drawHistoryChart();
-  } catch {}
+  // Only live polls count toward the activity history — replaying cached
+  // data would flatten the chart into a fake plateau.
+  if (source === 'live') {
+    try {
+      saveHistory(data.length);
+      const hb = document.getElementById('historyBar');
+      if (hb && hb.classList.contains('open')) drawHistoryChart();
+    } catch {}
+  }
 
   const ts = new Date().toLocaleTimeString('en-US', {
     hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true
   });
   const footer = document.getElementById('footer');
   if (footer) {
-    footer.innerHTML =
-      (source === 'live' ? 'LIVE UPDATED ' : 'CACHED · CHECKED ') + ts +
-      '<span class="auto-badge">Next refresh in 60s</span>';
+    const state = source === 'live' ? 'LIVE UPDATED '
+                : failStreak > 1    ? 'SOURCE UNREACHABLE · LAST CHECK '
+                :                     'CACHED · CHECKED ';
+    footer.innerHTML = state + ts + '<span class="auto-badge"></span>';
+    footer.classList.toggle('offline', source !== 'live');
   }
-
-  startCountdown();
 
   if (btn) { btn.classList.remove('busy'); if (btnLbl) btnLbl.textContent = 'Refresh'; }
 }
@@ -2524,12 +2704,8 @@ function tick() {
 setInterval(tick, 1000);
 tick();
 
-// Keep relative "ago" labels honest between the 60s refreshes
-setInterval(() => {
-  document.querySelectorAll('#feedList .age').forEach(el => {
-    if (el.dataset.iso) el.textContent = ago(el.dataset.iso);
-  });
-}, 30000);
+// Keep relative "ago" labels and stale dimming honest between refreshes
+setInterval(refreshAges, 30000);
 
 // ══════════════════════════════════════
 // INIT
@@ -2544,10 +2720,26 @@ try {
   }
 } catch {}
 
-try { render(FALLBACK_DATA, true); } catch (e) { console.error('initial render failed:', e); }
+try {
+  const lg = loadLastGood();
+  render(normalize(lg ? lg.data : FALLBACK_DATA), true);
+} catch (e) { console.error('initial render failed:', e); }
 
+// First poll. Every poll re-arms the next one (see scheduleNext): 60s while
+// visible, 5 min while hidden (the title badge still counts new incidents),
+// and exponential backoff while the live sources are down.
 loadData().catch(err => { console.error('loadData failed:', err); });
-setInterval(() => { loadData().catch(() => {}); }, 60000);
+
+// Regained connectivity: don't wait out a long backoff.
+window.addEventListener('online', () => { failStreak = 0; loadData().catch(() => {}); });
+
+// Installable PWA: app-shell service worker (network-first for the page,
+// cache-first for fonts and map libraries). Never touches /api/traffic.
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => { /* optional */ });
+  });
+}
 
 // Defer non-critical map overlays to idle time so they don't block
 // first paint or the initial live-data fetch.
@@ -2573,6 +2765,8 @@ document.addEventListener('visibilitychange', () => {
     // Returning to the tab acknowledges the new-incident title badge
     hiddenNewCount = 0;
     document.title = BASE_TITLE;
+    // ...and catches up immediately if the background poll was throttled
+    if (Date.now() - lastFetchAt >= REFRESH_MS && !fetchInProgress) loadData().catch(() => {});
   }
 });
 </script>
