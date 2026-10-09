@@ -1371,7 +1371,7 @@
     <!-- 24-hour activity chart (open by default) -->
     <div class="history-bar open" id="historyBar">
       <div class="history-header" onclick="toggleHistory()">
-        <span class="history-title">24H Activity</span>
+        <span class="history-title">12H Activity</span>
         <span class="history-peak" id="historyPeak"></span>
         <span class="history-toggle"><svg class="ic ic-sm"><use href="#i-chevron"/></svg></span>
       </div>
@@ -2077,17 +2077,53 @@ function incidentKey(item) {
   return item.CreateTime + '|' + item.Address;
 }
 
+// Validated [lat, lng] for an incident, or null. API values are untrusted —
+// never interpolate them into URLs or Leaflet calls without this check.
+function coords(item) {
+  const lat = Number(item && item.Latitude), lng = Number(item && item.Longitude);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  if (lat === 0 && lng === 0) return null;
+  if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+  return [lat, lng];
+}
+
+function fitToData(data) {
+  if (!map || !fitPending) return;
+  const pts = data.map(coords).filter(Boolean);
+  if (pts.length > 1) map.fitBounds(pts, { padding: [40, 40], maxZoom: 13 });
+  // fitPending is cleared by loadData(), not here, so the synchronous
+  // fallback paint and the first live load both frame the map.
+}
+
+// Ages and stale dimming are time-based, so they must move even when the
+// data itself hasn't changed (the diff check in loadData skips render then).
+function refreshAges() {
+  document.querySelectorAll('#feedList .card').forEach(card => {
+    const el = card.querySelector('.age');
+    if (!el || !el.dataset.iso) return;
+    el.textContent = ago(el.dataset.iso);
+    if (isStale(el.dataset.iso) && !card.classList.contains('stale')) {
+      card.classList.add('stale');
+      const tm = card.querySelector('.card-time');
+      if (tm && !tm.querySelector('.stale-label')) tm.insertAdjacentHTML('beforeend', '<span class="stale-label">(3h+)</span>');
+    }
+  });
+}
+
 function render(data, firstLoad) {
   // Stats
+  // Classify once per item; every count below derives from this pass.
+  const types = data.map(d => classify(d.Signal));
+  const typeCounts = { accident: 0, injury: 0, hitrun: 0, other: 0 };
+  types.forEach(t => { if (t in typeCounts) typeCounts[t]++; });
+
   document.getElementById('sCount').textContent = data.length;
-  document.getElementById('sInj').textContent   = data.filter(d => classify(d.Signal) === 'injury').length;
-  document.getElementById('sHR').textContent    = data.filter(d => classify(d.Signal) === 'hitrun').length;
+  document.getElementById('sInj').textContent   = typeCounts.injury;
+  document.getElementById('sHR').textContent    = typeCounts.hitrun;
   const feedCountEl = document.getElementById('feedCount');
   if (feedCountEl) feedCountEl.textContent = '· ' + data.length + ' active';
 
   // Per-type counts for breakdown strip + filter tabs
-  const typeCounts = { accident: 0, injury: 0, hitrun: 0, other: 0 };
-  data.forEach(d => { const t = classify(d.Signal); if (t in typeCounts) typeCounts[t]++; });
   ['accident','injury','hitrun','other'].forEach(t => {
     const chip = document.getElementById('chipN-' + t);
     if (chip) chip.textContent = typeCounts[t];
@@ -2125,13 +2161,12 @@ function render(data, firstLoad) {
   cardRefs   = [];
 
   data.forEach((item, i) => {
-    const t       = classify(item.Signal);
+    const t       = types[i];
     const key     = incidentKey(item);
     const stale   = isStale(item.CreateTime);
     const isNew   = newKeys.has(key);
-    const mapsUrl = (item.Latitude && item.Longitude)
-      ? 'https://maps.google.com/?q=' + item.Latitude + ',' + item.Longitude
-      : null;
+    const pos     = coords(item);
+    const mapsUrl = pos ? 'https://maps.google.com/?q=' + pos[0] + ',' + pos[1] : null;
 
     // ── Card ──────────────────────────────
     const card = document.createElement('div');
@@ -2174,11 +2209,11 @@ function render(data, firstLoad) {
       card.classList.add('selected');
       selectedKey = key;
       try { history.replaceState(null, '', '#i=' + encodeURIComponent(key)); } catch {}
-      if (map && item.Latitude && item.Longitude) {
+      if (map && pos) {
         const mk    = markerRefs[i];
         if (!mk) return;
         const fly = () => {
-          map.flyTo([item.Latitude, item.Longitude], 15, { duration: 0.7 });
+          map.flyTo(pos, 15, { duration: 0.7 });
           mk.openPopup();
         };
         const doFly = () => {
@@ -2199,7 +2234,7 @@ function render(data, firstLoad) {
     cardRefs[i] = card;
 
     // ── Map marker ────────────────────────
-    if (map && item.Latitude && item.Longitude) {
+    if (map && pos) {
       const icon = L.divIcon({
         className: '',
         html: '<div class="pulse-marker m-' + t + '"></div>',
@@ -2211,7 +2246,7 @@ function render(data, firstLoad) {
         ? '<div class="popup-sv">' +
             '<span class="popup-sv-loading">Loading view…</span>' +
             '<img src="https://maps.googleapis.com/maps/api/streetview' +
-              '?size=260x110&location=' + item.Latitude + ',' + item.Longitude +
+              '?size=260x110&location=' + pos[0] + ',' + pos[1] +
               '&fov=90&pitch=5&source=outdoor&key=' + GOOGLE_API_KEY + '"' +
               ' onload="this.style.display=\'block\';this.previousElementSibling.style.display=\'none\'"' +
               ' onerror="this.closest(\'.popup-sv\').style.display=\'none\'"' +
@@ -2228,7 +2263,7 @@ function render(data, firstLoad) {
       const copyPopupLink =
         '<a class="maps-link" href="#" onclick="return copyIncidentLink(event,' + i + ')" style="margin-top:6px;margin-left:12px">' + ic('i-copy') + '<span>Copy link</span></a>';
 
-      const mk = L.marker([item.Latitude, item.Longitude], { icon })
+      const mk = L.marker(pos, { icon })
         .bindPopup(
           '<div class="pop-sig" style="color:' + COLORS[t] + '">' + esc(item.Signal) + '</div>' +
           '<div class="pop-addr">' + esc(item.Address) + '</div>' +
@@ -2251,17 +2286,13 @@ function render(data, firstLoad) {
         }
       });
 
-      layerGroup.addLayer(mk);
-      markerRefs[i] = mk;
+      markerRefs[i] = mk; // added to the map by setFilter() below
     }
   });
 
   // Fit all markers in view — only on initial load or an explicit Refresh,
   // never on the silent 60s auto-refresh (it would yank the user's viewport).
-  if (map && fitPending) {
-    const pts = data.filter(d => d.Latitude && d.Longitude).map(d => [d.Latitude, d.Longitude]);
-    if (pts.length > 1) map.fitBounds(pts, { padding: [40, 40], maxZoom: 13 });
-  }
+  fitToData(data);
 
   updateDistances();
 
@@ -2369,9 +2400,10 @@ function updateDistances() {
   if (!userPos) return;
   cardRefs.forEach((card, i) => {
     const item = currentData[i];
-    if (!card || !item || !item.Latitude || !item.Longitude) return;
+    const pos  = item && coords(item);
+    if (!card || !pos) return;
     const el = card.querySelector('.card-dist');
-    if (el) el.textContent = distMiles(userPos.lat, userPos.lng, item.Latitude, item.Longitude).toFixed(1) + ' MI';
+    if (el) el.textContent = distMiles(userPos.lat, userPos.lng, pos[0], pos[1]).toFixed(1) + ' MI';
   });
 }
 
@@ -2422,9 +2454,17 @@ if (map) {
 let isFirstLoad = true;
 let nextRefreshAt = null;
 let countdownInterval = null;
+let fetchInProgress = false;
+let lastFetchAt     = 0;
+let lastDataSig     = '';
+
+const REFRESH_MS        = 60000;      // visible-tab poll interval
+const HIDDEN_REFRESH_MS = 5 * 60000;  // background tabs poll 5x less often
+const PROXY_TIMEOUT_MS  = 5000;       // allows for a serverless cold start
+const DIRECT_TIMEOUT_MS = 4000;
 
 function startCountdown() {
-  nextRefreshAt = Date.now() + 60000;
+  nextRefreshAt = Date.now() + REFRESH_MS;
   if (countdownInterval) clearInterval(countdownInterval);
   countdownInterval = setInterval(() => {
     const sec    = Math.max(0, Math.round((nextRefreshAt - Date.now()) / 1000));
@@ -2437,31 +2477,42 @@ function startCountdown() {
   }, 1000);
 }
 
+async function fetchFeed(url, timeoutMs) {
+  const r = await fetch(url, { signal: abortTimeout(timeoutMs), headers: { 'Accept': 'application/json' } });
+  if (!r.ok) return null;
+  const data = await r.json();
+  return (Array.isArray(data) && data.length) ? data : null;
+}
+
 async function loadData(manual) {
   if (manual === true) fitPending = true; // explicit Refresh re-frames the map
+  if (fetchInProgress) return;            // never run two polls concurrently
+  fetchInProgress = true;
+  try {
+    await doLoad();
+  } finally {
+    fetchInProgress = false;
+  }
+}
+
+async function doLoad() {
   const btn = document.getElementById('btnRefresh');
   const btnLbl = document.getElementById('btnRefreshLabel');
   if (btn) { btn.classList.add('busy'); if (btnLbl) btnLbl.textContent = 'Loading…'; }
-  try { layerGroup.clearLayers(); } catch {}
 
   let data   = null;
   let source = 'cached';
 
-  try {
-    const r = await fetch('/api/traffic', { signal: abortTimeout(2000) });
-    if (r.ok) { data = await r.json(); if (Array.isArray(data) && data.length) source = 'live'; else data = null; }
-  } catch {}
-
+  // 1. Vercel proxy (edge-cached) → 2. MDPD API directly → 3. embedded fallback
+  try { data = await fetchFeed('/api/traffic', PROXY_TIMEOUT_MS); } catch {}
   if (!data) {
-    try {
-      const r = await fetch('https://traffic.mdpd.com/api/traffic', { signal: abortTimeout(2000) });
-      if (r.ok) { data = await r.json(); if (Array.isArray(data) && data.length) source = 'live'; else data = null; }
-    } catch {}
+    try { data = await fetchFeed('https://traffic.mdpd.com/api/traffic', DIRECT_TIMEOUT_MS); } catch {}
   }
+  if (data) source = 'live';
+  else      { data = FALLBACK_DATA; source = 'cached'; }
 
-  if (!data) { data = FALLBACK_DATA; source = 'cached'; }
-
-  isLive = source === 'live';
+  isLive      = source === 'live';
+  lastFetchAt = Date.now();
 
   const badge = document.getElementById('sourceMode');
   if (badge) {
@@ -2476,17 +2527,26 @@ async function loadData(manual) {
     }
   }
 
-  // Never let a render/chart exception leave the feed panel blank
-  try {
-    render(data, isFirstLoad);
-  } catch (err) {
-    const list = document.getElementById('feedList');
-    if (list) {
-      list.innerHTML =
-        '<div class="loader-wrap"><div class="loader-text" style="color:var(--accent-red)">' +
-        'Feed render error — showing minimal view</div></div>';
+  // Diff check: if the incident set is identical to the last poll, skip the
+  // full DOM + marker rebuild. Only the time-based bits need to move.
+  const sig = source + '\n' + data.map(incidentKey).join('\n');
+  if (!isFirstLoad && sig === lastDataSig) {
+    refreshAges();
+    fitToData(data); // honours an explicit Refresh even when nothing changed
+  } else {
+    // Never let a render/chart exception leave the feed panel blank
+    try {
+      render(data, isFirstLoad);
+      lastDataSig = sig;
+    } catch (err) {
+      const list = document.getElementById('feedList');
+      if (list) {
+        list.innerHTML =
+          '<div class="loader-wrap"><div class="loader-text" style="color:var(--accent-red)">' +
+          'Feed render error — showing minimal view</div></div>';
+      }
+      console.error('render failed:', err);
     }
-    console.error('render failed:', err);
   }
   isFirstLoad = false;
   fitPending  = false;
@@ -2505,7 +2565,7 @@ async function loadData(manual) {
   if (footer) {
     footer.innerHTML =
       (source === 'live' ? 'LIVE UPDATED ' : 'CACHED · CHECKED ') + ts +
-      '<span class="auto-badge">Next refresh in 60s</span>';
+      '<span class="auto-badge">Next refresh in ' + (REFRESH_MS / 1000) + 's</span>';
   }
 
   startCountdown();
@@ -2524,12 +2584,8 @@ function tick() {
 setInterval(tick, 1000);
 tick();
 
-// Keep relative "ago" labels honest between the 60s refreshes
-setInterval(() => {
-  document.querySelectorAll('#feedList .age').forEach(el => {
-    if (el.dataset.iso) el.textContent = ago(el.dataset.iso);
-  });
-}, 30000);
+// Keep relative "ago" labels and stale dimming honest between refreshes
+setInterval(refreshAges, 30000);
 
 // ══════════════════════════════════════
 // INIT
@@ -2547,7 +2603,14 @@ try {
 try { render(FALLBACK_DATA, true); } catch (e) { console.error('initial render failed:', e); }
 
 loadData().catch(err => { console.error('loadData failed:', err); });
-setInterval(() => { loadData().catch(() => {}); }, 60000);
+
+// Poll every 60s while visible. A hidden tab still polls (so the title badge
+// can count new incidents) but only every 5 minutes, cutting API load for
+// the common "left open in a background tab" case.
+setInterval(() => {
+  if (document.hidden && Date.now() - lastFetchAt < HIDDEN_REFRESH_MS) return;
+  loadData().catch(() => {});
+}, REFRESH_MS);
 
 // Defer non-critical map overlays to idle time so they don't block
 // first paint or the initial live-data fetch.
@@ -2573,6 +2636,8 @@ document.addEventListener('visibilitychange', () => {
     // Returning to the tab acknowledges the new-incident title badge
     hiddenNewCount = 0;
     document.title = BASE_TITLE;
+    // ...and catches up immediately if the background poll was throttled
+    if (Date.now() - lastFetchAt >= REFRESH_MS) loadData().catch(() => {});
   }
 });
 </script>

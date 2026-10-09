@@ -9,13 +9,13 @@
 
 | Layer | Technology |
 |-------|-----------|
-| Frontend | Vanilla JS single-page app (1 HTML file, ~1950 lines) |
+| Frontend | Vanilla JS single-page app (1 HTML file, ~2600 lines) |
 | Map | Leaflet.js 1.9.4 + MarkerCluster 1.5.3 |
-| Backend | Vercel serverless proxy (`/api/traffic`) |
+| Backend | Vercel serverless proxy (`api/traffic.js` → `/api/traffic`) |
 | Data Source | `https://traffic.mdpd.com/api/traffic` (JSON array of incidents) |
 | Secondary Sources | NWS Weather API, Google Street View (optional) |
 | Caching | Vercel ISR (30s/60s stale), localStorage (12h history chart) |
-| Refresh | 60-second polling interval via `setInterval` |
+| Refresh | 60-second polling while visible; 5-minute polling while the tab is hidden |
 | Fallback | 3-tier: Vercel proxy → Direct MDPD API → Embedded fallback data |
 
 **Data shape per incident:**
@@ -30,6 +30,27 @@
   "Latitude": 25.93521252
 }
 ```
+
+---
+
+## Implementation Status (updated 2026-10-09)
+
+| Item | Status | Where |
+|------|--------|-------|
+| Quick Win #1 — Diff-based rendering | ✅ Done | `loadData()` compares the incident-key signature of each poll to the last; identical data skips the DOM/marker rebuild and only refreshes ages and stale dimming. |
+| Quick Win #2 — Request deduplication | ✅ Done | `fetchInProgress` guard in `loadData()`. |
+| Quick Win #3 — Preserve map viewport | ✅ Done | `fitToData()` runs only on first load and explicit Refresh. |
+| Quick Win #4 — Single-pass classification | ✅ Done | `render()` classifies each item once. |
+| 5d — Visibility-aware polling | ✅ Done (modified) | Hidden tabs keep polling, but every 5 min instead of 60 s, so the title-badge "new incident" count still works. Returning to the tab triggers an immediate catch-up fetch if data is older than 60 s. |
+| 6a — Edge caching on the proxy | ✅ Done | `s-maxage=30, stale-while-revalidate=60`; failures are sent `no-store` so a bad upstream response is never cached. |
+| 9b — Exponential backoff on failure | ⏳ Not yet | Fetch timeouts are bounded (5 s proxy / 4 s direct) so a down upstream costs at most ~9 s per poll. |
+| 6a — ETag / conditional responses | ⏳ Not yet | |
+| 5b — Staged loading | ✅ Done | Fallback data paints synchronously; overlays load in `requestIdleCallback`. |
+
+**Proxy route fix.** The handler previously lived in a root file named `api` and was
+therefore never deployed as `/api/traffic`; every client poll fell through to the
+direct MDPD fetch (usually blocked by CORS) and then to the embedded fallback. It now
+lives at `api/traffic.js`, which Vercel maps to `/api/traffic`.
 
 ---
 
@@ -140,7 +161,7 @@ function render(data, firstLoad) {
 | **NWS weather alerts** | In-memory (client) | 10–15 minutes | Weather alerts don't change second-by-second. |
 | **Landmark/highway data** | Hardcoded (current) | Infinite | Static data. Already correct. |
 | **Flood hotspots** | Hardcoded (current) | Infinite | Static data. Already correct. |
-| **24h history chart** | localStorage (current) | 12 hours | Already correct. |
+| **12h history chart** | localStorage (current) | 12 hours | Already correct. |
 | **Incident counts by hour** | localStorage | 24 hours | For the history chart; already implemented. |
 
 ---
@@ -403,7 +424,7 @@ function updateMarkers(newData) {
 | **Live traffic incidents** | 60 seconds (current) | Polling with diff check. Pause when tab hidden. |
 | **NWS weather alerts** | 10–15 minutes | Cache in memory. Re-fetch on manual refresh or timer. |
 | **Landmarks, highways, flood hotspots** | Never (static) | Hardcoded. Already correct. |
-| **24h history chart** | On each data poll | localStorage accumulation. Already correct. |
+| **12h history chart** | On each data poll | localStorage accumulation. Already correct. |
 | **Street View thumbnails** | On-demand only | Loaded when popup opens. Already correct. |
 
 ---
