@@ -11,7 +11,7 @@ hit & runs and other incidents from `traffic.mdpd.com`.
 | `index.html` | The entire app: styles, SVG icon sprite, markup and JavaScript. No build step. |
 | `api/traffic.js` | Vercel serverless function served at `/api/traffic`. Proxies the MDPD feed with edge caching (30 s fresh, 60 s stale-while-revalidate). |
 | `sw.js`, `manifest.webmanifest`, `icons/` | Installable PWA. The service worker caches only the app shell, fonts and map libraries; the feed itself is never cached by it. |
-| `vercel.json` | Security headers and cache rules for the service worker, manifest and icons. |
+| `vercel.json` | Pins `outputDirectory` to the repo root (no `public/` folder needed), plus security headers and cache rules for the service worker, manifest and icons. |
 | `DESIGN_REFINEMENT.md` | V2 design guidelines and guardrails. All Section 3 and 4 items are implemented. |
 | `PERFORMANCE_ENGINEERING_PLAN.md` | Performance plan with an implementation-status table. |
 
