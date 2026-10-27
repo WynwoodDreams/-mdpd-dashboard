@@ -1,0 +1,22 @@
+{
+  "name": "mdpd-dashboard",
+  "version": "1.0.0",
+  "description": "Live Miami-Dade Police traffic incidents dashboard",
+  "type": "module",
+  "scripts": {
+    "dev": "vercel dev",
+    "build": "echo 'Static build complete'",
+    "lint": "echo 'No linting configured yet'"
+  },
+  "keywords": [
+    "mdpd",
+    "traffic",
+    "incidents",
+    "dashboard"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@vercel/analytics": "^2.0.1"
+  }
+}
